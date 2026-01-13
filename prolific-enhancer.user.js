@@ -42,12 +42,32 @@
     // Run on extension setup
     if (!(await store.get("initialized", false))) {
         await store.set("surveys", {});
+        await store.set("gbpToUsd", {});
         // Extension setup
         await store.set("initialized", true);
     }
 
-    // 24 hours
-    const NOTIFY_TTL_MS = 24 * 60 * 60 * 1000;
+    const NOTIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+    const GBP_TO_USD_FETCH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+    async function fetchGbpRate() {
+        const response = await fetch("https://open.er-api.com/v6/latest/GBP");
+        const data = await response.json();
+        return data.rates.USD;
+    }
+
+    async function checkGbpRate() {
+        const lastGbpToUsd = await store.get("gbpToUsd", {});
+        const now = Date.now();
+        if (
+            lastGbpToUsd &&
+            now - lastGbpToUsd.timestamp < GBP_TO_USD_FETCH_INTERVAL_MS
+        )
+            return;
+
+        const rate = (await fetchGbpRate().catch(console.error)) || 1.35; // fallback rate
+        await store.set("gbpToUsd", { rate, timestamp: now });
+    }
 
     /** @param {HTMLElement} surveyElement */
     function getSurveyFingerprint(surveyElement) {
@@ -61,7 +81,7 @@
         const entries = await store.get("surveys", {});
 
         for (const [key, timestamp] of Object.entries(entries)) {
-            if (now - timestamp > NOTIFY_TTL_MS) {
+            if (now - timestamp >= NOTIFY_TTL_MS) {
                 delete entries[key];
             }
         }
@@ -131,7 +151,7 @@
     // Function to highlight all hourly rate elements on the page
     function highlightHourlyRates() {
         const elements = document.querySelectorAll(
-            "[data-testid='study-tag-reward-per-hour']"
+            "[data-testid='study-tag-reward-per-hour']",
         );
         for (const element of elements) {
             // Check if the element should be ignored
@@ -179,24 +199,25 @@
     }
 
     // Function to convert all elements containing GBP to USD
-    function convertToUsd() {
+    async function convertToUsd() {
         const elements = document.querySelectorAll("span.reward span");
+        const { rate } = await store.get("gbpToUsd", {});
         for (const element of elements) {
             const symbol = extractSymbol(element.textContent);
             if (symbol !== "£") continue;
 
-            // approximate, updated manually every few months
-            const gbpToUsdRate = 1.35;
-            const rate = extractHourlyRate(element.textContent);
-            let modified = `$${(rate * gbpToUsdRate).toFixed(2)}`;
+            const elementRate = extractHourlyRate(element.textContent);
+            let modified = `$${(elementRate * rate).toFixed(2)}`;
             if (element.textContent.includes("/hr")) modified += "/hr";
             element.textContent = modified;
         }
     }
 
     async function applyEnhancements() {
+        // Fetch the GBP to USD rate once a week
+        await checkGbpRate();
         // Conversion to USD must be done first
-        convertToUsd();
+        await convertToUsd();
         highlightHourlyRates();
         addDirectSurveyLinks();
         await extractSurveys();
@@ -211,7 +232,7 @@
     // Observe the DOM for changes and re-run the enhancements if necessary
     const observer = new MutationObserver(async (mutations) => {
         const hasChanges = mutations.some(
-            (m) => m.addedNodes.length > 0 || m.removedNodes.length > 0
+            (m) => m.addedNodes.length > 0 || m.removedNodes.length > 0,
         );
         if (!hasChanges) return;
 
