@@ -50,6 +50,36 @@
     const NOTIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
     const GBP_TO_USD_FETCH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+    function addGlobalStyle(css) {
+        const style = document.createElement("style");
+        style.textContent = css;
+        document.head.appendChild(style);
+    }
+
+    addGlobalStyle(`
+        .pe-custom-btn {
+            padding: 8px 24px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            background-color: #0a3c95;
+            color: white;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .pe-custom-btn:hover {
+            background-color: #0d4ebf;
+            color: white !important;
+        }
+        .pe-btn-container {
+            padding: 0 16px 8px 16px;
+        }
+        .pe-rate-highlight {
+            padding: 3px 4px;
+            border-radius: 4px;
+            color: black;
+        }
+    `);
+
     async function fetchGbpRate() {
         const response = await fetch("https://open.er-api.com/v6/latest/GBP");
         const data = await response.json();
@@ -138,14 +168,12 @@
     // Function to highlight an element based on its hourly rate
     /** @param {HTMLElement} element  */
     function highlightElement(element) {
+        if (element.classList.contains("pe-rate-highlight")) return;
         const rate = extractHourlyRate(element.textContent);
         if (isNaN(rate)) return;
 
         element.style.backgroundColor = rateToColor(rate);
-        // Set default styles
-        element.style.padding = "3px 4px";
-        element.style.borderRadius = "4px";
-        element.style.color = "black";
+        element.classList.add("pe-rate-highlight");
     }
 
     // Function to highlight all hourly rate elements on the page
@@ -169,24 +197,17 @@
             const testid = survey.getAttribute("data-testid");
             const surveyId = testid.replace("study-", "");
             const studyContent = survey.querySelector("div.study-content");
-            if (studyContent && !studyContent.querySelector(".prolific-link")) {
+            if (studyContent && !studyContent.querySelector(".pe-link")) {
                 const container = document.createElement("div");
                 const link = document.createElement("a");
+                container.className = "pe-btn-container";
                 container.appendChild(link);
+                link.className = "pe-link pe-custom-btn";
                 link.href = `https://app.prolific.com/studies/${surveyId}`;
                 link.textContent = "Take part in this study";
                 link.target = "_blank";
                 link.rel = "noopener noreferrer";
-                link.className = "prolific-link";
-                link.style.padding = "8px 24px";
-                link.style.borderRadius = "4px";
-                link.style.fontSize = "0.9em";
-                link.style.backgroundColor = "#0a3c95";
-                link.style.color = "white";
-                link.style.cursor = "pointer";
                 studyContent.appendChild(container);
-
-                container.style.padding = "0 16px 8px 16px";
             }
         }
     }
