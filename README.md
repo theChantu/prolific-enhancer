@@ -26,8 +26,7 @@ A JavaScript userscript that augments the Prolific user experience.
     - [Violentmonkey](https://violentmonkey.github.io/) (Chrome, Edge, Firefox)
 
 2. **Install the Script**
-    - Install directly from the raw file:
-      `https://github.com/theChantu/prolific-enhancer/raw/main/dist/prolific-enhancer.user.js`
+    - Install directly from [here](https://github.com/theChantu/prolific-enhancer/raw/main/dist/prolific-enhancer.user.js).
     - Or, navigate to the `dist/prolific-enhancer.user.js` file in this repository and click **Raw**.
     - Your Userscript Manager should automatically detect the script and prompt you to install.
     - Click **Confirm** or **Install**.
@@ -49,26 +48,34 @@ A JavaScript userscript that augments the Prolific user experience.
 
 ### Installation
 
+Clone the repository
+
+```
+git clone https://github.com/theChantu/prolific-enhancer.git
+```
+
+Navigate to the directory
+
+```
+cd prolific-enhancer/
+```
+
+Install the dependencies
+
 ```
 npm install
 ```
 
-Or, with Bun:
-
-```
-bun install
-```
-
 ### Development
 
-To watch for changes, run the following command:
+Build
+
+```
+npm run build
+```
+
+Build and watch for changes
 
 ```
 npm run watch
-```
-
-Or, with Bun:
-
-```
-bun run watch
 ```
