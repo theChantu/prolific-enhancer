@@ -14,11 +14,14 @@ import { log } from "./utils";
     log("Loaded.");
 
     // Run on extension setup
-    if (!(await store.get("initialized", false))) {
-        await store.set("surveys", {});
-        await store.set("gbpToUsd", {});
-        // Extension setup
-        await store.set("initialized", true);
+    const { initialized } = await store.get({ initialized: false });
+    if (!initialized) {
+        // Set default values
+        await store.set({
+            surveys: {},
+            gbpToUsd: { rate: 1.35, timestamp: 0 },
+            initialized: true,
+        });
     }
 
     GM.addStyle(`
@@ -67,7 +70,7 @@ import { log } from "./utils";
     async function runEnhancements() {
         // Fetch the GBP to USD rate before conversion
         await updateGbpRate();
-        // Conversion to USD before highlighting rates
+        // Convert to USD before highlighting rates
         await convertGbpToUsd();
         highlightHourlyRates();
         insertSurveyLinks();

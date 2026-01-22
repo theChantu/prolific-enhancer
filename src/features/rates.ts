@@ -8,16 +8,15 @@ async function fetchGbpRate() {
 }
 
 async function updateGbpRate() {
-    const lastGbpToUsd = await store.get("gbpToUsd", {});
+    const { gbpToUsd } = await store.get({
+        gbpToUsd: { rate: 1.35, timestamp: 0 },
+    });
     const now = Date.now();
-    if (
-        lastGbpToUsd &&
-        now - lastGbpToUsd.timestamp < GBP_TO_USD_FETCH_INTERVAL_MS
-    )
+    if (gbpToUsd && now - gbpToUsd.timestamp < GBP_TO_USD_FETCH_INTERVAL_MS)
         return;
 
     const rate = (await fetchGbpRate().catch(console.error)) || 1.35; // fallback rate
-    await store.set("gbpToUsd", { rate, timestamp: now });
+    await store.set({ gbpToUsd: { rate, timestamp: now } });
 }
 
 function extractHourlyRate(text: string) {
@@ -70,7 +69,10 @@ function extractSymbol(text: string) {
 
 async function convertGbpToUsd() {
     const elements = document.querySelectorAll("span.reward span");
-    const { rate } = await store.get("gbpToUsd", {});
+    const { gbpToUsd } = await store.get({
+        gbpToUsd: { rate: 1.35, timestamp: 0 },
+    });
+    const { rate } = gbpToUsd;
     for (const element of elements) {
         const symbol = extractSymbol(element.textContent);
         if (symbol !== "£") continue;

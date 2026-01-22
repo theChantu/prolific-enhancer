@@ -1,5 +1,5 @@
-import type { Surveys } from "../types";
 import store from "../store";
+import { getSharedResources } from "../utils";
 import { NOTIFY_TTL_MS } from "../constants";
 
 function getSurveyFingerprint(surveyElement: HTMLElement) {
@@ -13,22 +13,21 @@ async function saveSurveyFingerprint(surveyElement: HTMLElement) {
     if (!fingerprint) return false;
     const now = Date.now();
 
-    const entries = await store.get<Surveys>("surveys", {});
+    const { surveys: immutableSurveys } = await store.get({ surveys: {} });
+    const surveys = structuredClone(immutableSurveys);
 
-    for (const [key, timestamp] of Object.entries(entries) as Array<
-        [keyof Surveys, Surveys[keyof Surveys]]
-    >) {
+    for (const [key, timestamp] of Object.entries(surveys)) {
         if (now - timestamp >= NOTIFY_TTL_MS) {
-            delete entries[key];
+            delete surveys[key];
         }
     }
 
-    if (entries[fingerprint]) {
+    if (surveys[fingerprint]) {
         return false;
     }
 
-    entries[fingerprint] = now;
-    await store.set("surveys", entries);
+    surveys[fingerprint] = now;
+    await store.set({ surveys });
 
     return true;
 }
@@ -37,6 +36,8 @@ async function notifyNewSurveys() {
     const surveys = document.querySelectorAll<HTMLElement>(
         'li[data-testid^="study-"]',
     );
+    if (surveys.length === 0) return;
+    const assets = await getSharedResources();
     for (const survey of surveys) {
         const isNewFingerprint = await saveSurveyFingerprint(survey);
         if (!isNewFingerprint || !document.hidden) continue;
@@ -51,11 +52,10 @@ async function notifyNewSurveys() {
             "Unknown Reward";
         if (!surveyId) continue;
         const surveyLink = `https://app.prolific.com/studies/${surveyId}`;
-        const prolificLogo = await GM.getResourceUrl("prolific_logo");
         GM.notification({
             title: surveyTitle,
             text: surveyReward,
-            image: prolificLogo,
+            image: assets["prolific_logo"],
             onclick: () =>
                 GM.openInTab(surveyLink, {
                     active: true,

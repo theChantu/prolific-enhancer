@@ -1,14 +1,16 @@
 // ==UserScript==
 // @name         Prolific Enhancer
 // @namespace    Violentmonkey Scripts
-// @version      1.4
+// @version      1.5
 // @description  A lightweight userscript that makes finding worthwhile Prolific studies faster and less annoying.
 // @author       Chantu
 // @license      MIT
 // @match        *://app.prolific.com/*
 // @grant        GM.notification
 // @grant        GM.getValue
+// @grant        GM.getValues
 // @grant        GM.setValue
+// @grant        GM.setValues
 // @grant        GM.openInTab
 // @grant        GM.addStyle
 // @grant        GM.getResourceUrl
@@ -20,8 +22,17 @@
 (() => {
   // src/store.ts
   var store = {
-    set: async (k, v) => await GM.setValue(k, JSON.stringify(v)),
-    get: async (k, def) => JSON.parse(await GM.getValue(k, JSON.stringify(def)))
+    async get(arg) {
+      if (Array.isArray(arg)) {
+        return GM.getValues([...arg]);
+      }
+      const keys = Object.keys(arg);
+      const values = await GM.getValues(keys);
+      return { ...arg, ...values };
+    },
+    set: async (values) => {
+      await GM.setValues(values);
+    }
   };
   var store_default = store;
 
@@ -48,6 +59,29 @@
     }
   }
 
+  // src/utils.ts
+  var log = (...args) => {
+    console.log("[Prolific Enhancer]", ...args);
+  };
+  var fetchResources = (...args) => {
+    let promise = null;
+    return () => {
+      if (!promise) {
+        promise = (async () => {
+          const resources = {};
+          for (const name of args) {
+            const resource = await GM.getResourceUrl(name);
+            if (!resource) continue;
+            resources[name] = resource;
+          }
+          return resources;
+        })();
+      }
+      return promise;
+    };
+  };
+  var getSharedResources = fetchResources("prolific_logo");
+
   // src/constants.ts
   var NOTIFY_TTL_MS = 24 * 60 * 60 * 1e3;
   var GBP_TO_USD_FETCH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1e3;
@@ -62,23 +96,26 @@
     const fingerprint = getSurveyFingerprint(surveyElement);
     if (!fingerprint) return false;
     const now = Date.now();
-    const entries = await store_default.get("surveys", {});
-    for (const [key, timestamp] of Object.entries(entries)) {
+    const { surveys: immutableSurveys } = await store_default.get({ surveys: {} });
+    const surveys = structuredClone(immutableSurveys);
+    for (const [key, timestamp] of Object.entries(surveys)) {
       if (now - timestamp >= NOTIFY_TTL_MS) {
-        delete entries[key];
+        delete surveys[key];
       }
     }
-    if (entries[fingerprint]) {
+    if (surveys[fingerprint]) {
       return false;
     }
-    entries[fingerprint] = now;
-    await store_default.set("surveys", entries);
+    surveys[fingerprint] = now;
+    await store_default.set({ surveys });
     return true;
   }
   async function notifyNewSurveys() {
     const surveys = document.querySelectorAll(
       'li[data-testid^="study-"]'
     );
+    if (surveys.length === 0) return;
+    const assets = await getSharedResources();
     for (const survey of surveys) {
       const isNewFingerprint = await saveSurveyFingerprint(survey);
       if (!isNewFingerprint || !document.hidden) continue;
@@ -87,11 +124,10 @@
       const surveyReward = survey.querySelector("span.reward")?.textContent || "Unknown Reward";
       if (!surveyId) continue;
       const surveyLink = `https://app.prolific.com/studies/${surveyId}`;
-      const prolificLogo = await GM.getResourceUrl("prolific_logo");
       GM.notification({
         title: surveyTitle,
         text: surveyReward,
-        image: prolificLogo,
+        image: assets["prolific_logo"],
         onclick: () => GM.openInTab(surveyLink, {
           active: true
         })
@@ -106,12 +142,14 @@
     return data.rates.USD;
   }
   async function updateGbpRate() {
-    const lastGbpToUsd = await store_default.get("gbpToUsd", {});
+    const { gbpToUsd } = await store_default.get({
+      gbpToUsd: { rate: 1.35, timestamp: 0 }
+    });
     const now = Date.now();
-    if (lastGbpToUsd && now - lastGbpToUsd.timestamp < GBP_TO_USD_FETCH_INTERVAL_MS)
+    if (gbpToUsd && now - gbpToUsd.timestamp < GBP_TO_USD_FETCH_INTERVAL_MS)
       return;
     const rate = await fetchGbpRate().catch(console.error) || 1.35;
-    await store_default.set("gbpToUsd", { rate, timestamp: now });
+    await store_default.set({ gbpToUsd: { rate, timestamp: now } });
   }
   function extractHourlyRate(text) {
     const m = text.match(/[\d.]+/);
@@ -152,7 +190,10 @@
   }
   async function convertGbpToUsd() {
     const elements = document.querySelectorAll("span.reward span");
-    const { rate } = await store_default.get("gbpToUsd", {});
+    const { gbpToUsd } = await store_default.get({
+      gbpToUsd: { rate: 1.35, timestamp: 0 }
+    });
+    const { rate } = gbpToUsd;
     for (const element of elements) {
       const symbol = extractSymbol(element.textContent);
       if (symbol !== "\xA3") continue;
@@ -163,19 +204,17 @@
     }
   }
 
-  // src/utils.ts
-  var log = (...args) => {
-    console.log("[Prolific Enhancer]", ...args);
-  };
-
   // src/main.ts
   (async function() {
     "use strict";
     log("Loaded.");
-    if (!await store_default.get("initialized", false)) {
-      await store_default.set("surveys", {});
-      await store_default.set("gbpToUsd", {});
-      await store_default.set("initialized", true);
+    const { initialized } = await store_default.get({ initialized: false });
+    if (!initialized) {
+      await store_default.set({
+        surveys: {},
+        gbpToUsd: { rate: 1.35, timestamp: 0 },
+        initialized: true
+      });
     }
     GM.addStyle(`
         .pe-custom-btn {

@@ -1,14 +1,16 @@
 // ==UserScript==
 // @name         Prolific Enhancer
 // @namespace    Violentmonkey Scripts
-// @version      1.4
+// @version      1.5
 // @description  A lightweight userscript that makes finding worthwhile Prolific studies faster and less annoying.
 // @author       Chantu
 // @license      MIT
 // @match        *://app.prolific.com/*
 // @grant        GM.notification
 // @grant        GM.getValue
+// @grant        GM.getValues
 // @grant        GM.setValue
+// @grant        GM.setValues
 // @grant        GM.openInTab
 // @grant        GM.addStyle
 // @grant        GM.getResourceUrl
