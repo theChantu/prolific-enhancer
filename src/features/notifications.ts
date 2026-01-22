@@ -2,15 +2,7 @@ import store from "../store";
 import { getSharedResources } from "../utils";
 import { NOTIFY_TTL_MS } from "../constants";
 
-function getSurveyFingerprint(surveyElement: HTMLElement) {
-    const surveyId = surveyElement.dataset.testid;
-    if (!surveyId) return null;
-    return surveyId;
-}
-
-async function saveSurveyFingerprint(surveyElement: HTMLElement) {
-    const fingerprint = getSurveyFingerprint(surveyElement);
-    if (!fingerprint) return false;
+async function saveSurveyFingerprint(fingerprint: string) {
     const now = Date.now();
 
     const { surveys: immutableSurveys } = await store.get({ surveys: {} });
@@ -39,12 +31,13 @@ async function notifyNewSurveys() {
     if (surveys.length === 0) return;
     const assets = await getSharedResources();
     for (const survey of surveys) {
-        const isNewFingerprint = await saveSurveyFingerprint(survey);
-        if (!isNewFingerprint || !document.hidden) continue;
-
         const surveyId = survey
             .getAttribute("data-testid")
             ?.replace("study-", "");
+        if (!surveyId) continue;
+        const isNewFingerprint = await saveSurveyFingerprint(surveyId);
+        if (!isNewFingerprint || !document.hidden) continue;
+
         const surveyTitle =
             survey.querySelector("h2.title")?.textContent || "New Survey";
         const surveyReward =

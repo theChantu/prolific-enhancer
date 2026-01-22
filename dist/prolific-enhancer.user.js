@@ -87,14 +87,7 @@
   var GBP_TO_USD_FETCH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1e3;
 
   // src/features/notifications.ts
-  function getSurveyFingerprint(surveyElement) {
-    const surveyId = surveyElement.dataset.testid;
-    if (!surveyId) return null;
-    return surveyId;
-  }
-  async function saveSurveyFingerprint(surveyElement) {
-    const fingerprint = getSurveyFingerprint(surveyElement);
-    if (!fingerprint) return false;
+  async function saveSurveyFingerprint(fingerprint) {
     const now = Date.now();
     const { surveys: immutableSurveys } = await store_default.get({ surveys: {} });
     const surveys = structuredClone(immutableSurveys);
@@ -117,9 +110,10 @@
     if (surveys.length === 0) return;
     const assets = await getSharedResources();
     for (const survey of surveys) {
-      const isNewFingerprint = await saveSurveyFingerprint(survey);
-      if (!isNewFingerprint || !document.hidden) continue;
       const surveyId = survey.getAttribute("data-testid")?.replace("study-", "");
+      if (!surveyId) continue;
+      const isNewFingerprint = await saveSurveyFingerprint(surveyId);
+      if (!isNewFingerprint || !document.hidden) continue;
       const surveyTitle = survey.querySelector("h2.title")?.textContent || "New Survey";
       const surveyReward = survey.querySelector("span.reward")?.textContent || "Unknown Reward";
       if (!surveyId) continue;
