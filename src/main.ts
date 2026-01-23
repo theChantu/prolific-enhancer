@@ -4,7 +4,7 @@ import {
     newSurveyNotificationsEnhancement,
     highlightRatesEnhancement,
     surveyLinksEnhancement,
-    updateGbpRate,
+    updateRates,
 } from "./features";
 import { log } from "./utils";
 import { vmSettingsDefaults } from "./store";
@@ -19,8 +19,15 @@ import { vmSettingsDefaults } from "./store";
     if (!initialized) {
         // Set default values
         await store.set({
+            currency: "$",
             surveys: {},
+            rates: {
+                timestamp: 0,
+                gbpToUsd: { rate: 1.35 },
+                usdToGbp: { rate: 0.74 },
+            },
             gbpToUsd: { rate: 1.35, timestamp: 0 },
+            usdToGbp: { rate: 0.74, timestamp: 0 },
             enableCurrencyConversion: true,
             enableHighlightRates: true,
             enableSurveyLinks: true,
@@ -93,14 +100,14 @@ import { vmSettingsDefaults } from "./store";
                 newSurveyNotificationsEnhancement.revert(),
         ]);
 
-        // Convert to USD before highlighting rates
+        // Convert to selected currency before highlighting rates
         if (enableCurrencyConversion) {
-            // Fetch the latest GBP to USD rate before conversion
-            await updateGbpRate();
-            await convertCurrencyEnhancement.apply();
+            // Fetch the latest currency rates before conversion
+            await updateRates();
         }
 
         await Promise.all([
+            enableCurrencyConversion && convertCurrencyEnhancement.apply(),
             enableHighlightRates && highlightRatesEnhancement.apply(),
             enableSurveyLinks && surveyLinksEnhancement.apply(),
             enableNewSurveyNotifications &&
@@ -136,27 +143,40 @@ import { vmSettingsDefaults } from "./store";
             }
             commandIds.length = 0;
 
-            const values = await store.get(
-                Object.keys(
-                    vmSettingsDefaults,
-                ) as (keyof typeof vmSettingsDefaults)[],
-            );
+            const { currency } = await store.get({ currency: "$" });
 
-            const settings = { ...vmSettingsDefaults, ...values };
+            const id = GM.registerMenuCommand(
+                `Currency: ${currency}`,
+                async () => {
+                    await store.set({
+                        currency: currency === "$" ? "£" : "$",
+                    });
+                    await runEnhancements();
+                },
+            );
+            commandIds.push(id);
+
+            const values = await store.get([
+                ...(Object.keys(
+                    vmSettingsDefaults,
+                ) as (keyof typeof vmSettingsDefaults)[]),
+            ]);
+
+            const booleanSettings = { ...vmSettingsDefaults, ...values };
 
             for (const setting of Object.keys(
-                settings,
-            ) as (keyof typeof settings)[]) {
+                booleanSettings,
+            ) as (keyof typeof booleanSettings)[]) {
                 const settingName = setting
                     .replace("enable", "")
                     .split(/(?=[A-Z])/)
                     .join(" ");
 
                 const id = GM.registerMenuCommand(
-                    `${settings[setting] ? "Disable" : "Enable"} ${settingName}`,
+                    `${booleanSettings[setting] ? "Disable" : "Enable"} ${settingName}`,
                     async () => {
                         await store.set({
-                            [setting]: !settings[setting],
+                            [setting]: !booleanSettings[setting],
                         });
                         await runEnhancements();
                     },

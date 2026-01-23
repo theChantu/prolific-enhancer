@@ -9,10 +9,19 @@ type VMSettings = {
     [K in keyof typeof vmSettingsDefaults]: (typeof vmSettingsDefaults)[K];
 };
 
+type Currency = "$" | "£";
+
 type StoreSchema = VMSettings & {
+    rates?: {
+        timestamp: ReturnType<typeof Date.now>;
+        gbpToUsd: { rate: number };
+        usdToGbp: { rate: number };
+    };
     gbpToUsd?: { rate: number; timestamp: number };
+    usdToGbp?: { rate: number; timestamp: number };
     initialized?: boolean;
     surveys?: Record<string, number>;
+    currency: Currency;
 };
 
 type StoreListener = (changed: Partial<StoreSchema>) => void;

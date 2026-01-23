@@ -3,5 +3,5 @@ export { newSurveyNotificationsEnhancement } from "./notifications";
 export {
     convertCurrencyEnhancement,
     highlightRatesEnhancement,
-    updateGbpRate,
+    updateRates,
 } from "./rates";

@@ -1,5 +1,9 @@
 import store from "../store";
-import { GBP_TO_USD_FETCH_INTERVAL_MS } from "../constants.ts";
+import {
+    GBP_TO_USD_FETCH_INTERVAL_MS,
+    MIN_AMOUNT_PER_HOUR,
+    MAX_AMOUNT_PER_HOUR,
+} from "../constants.ts";
 import type { Enhancement } from "../types.ts";
 
 async function fetchGbpRate() {
@@ -8,16 +12,34 @@ async function fetchGbpRate() {
     return data.rates.USD;
 }
 
-async function updateGbpRate() {
-    const { gbpToUsd } = await store.get({
-        gbpToUsd: { rate: 1.35, timestamp: 0 },
-    });
-    const now = Date.now();
-    if (gbpToUsd && now - gbpToUsd.timestamp < GBP_TO_USD_FETCH_INTERVAL_MS)
-        return;
+async function fetchUsdRate() {
+    const response = await fetch("https://open.er-api.com/v6/latest/USD");
+    const data = await response.json();
+    return data.rates.GBP;
+}
 
-    const rate = (await fetchGbpRate().catch(console.error)) || 1.35; // fallback rate
-    await store.set({ gbpToUsd: { rate, timestamp: now } });
+async function updateRates() {
+    const { rates } = await store.get({
+        rates: {
+            timestamp: 0,
+            gbpToUsd: { rate: 1.35 },
+            usdToGbp: { rate: 0.74 },
+        },
+    });
+
+    const now = Date.now();
+    if (now - rates.timestamp < GBP_TO_USD_FETCH_INTERVAL_MS) return;
+
+    const gbpToUsdRate = (await fetchGbpRate().catch(console.error)) || 1.35; // fallback rate
+    const usdToGbpRate = (await fetchUsdRate().catch(console.error)) || 0.74; // fallback rate
+
+    await store.set({
+        rates: {
+            timestamp: now,
+            gbpToUsd: { rate: gbpToUsdRate },
+            usdToGbp: { rate: usdToGbpRate },
+        },
+    });
 }
 
 function extractHourlyRate(text: string) {
@@ -49,20 +71,37 @@ function extractSymbol(text: string) {
 class ConvertCurrencyEnhancement implements Enhancement {
     async apply() {
         const elements = document.querySelectorAll("span.reward span");
-        const { gbpToUsd } = await store.get({
-            gbpToUsd: { rate: 1.35, timestamp: 0 },
-        });
-        const { rate } = gbpToUsd;
+        const {
+            currency = "$",
+            gbpToUsd = { rate: 1.35, timestamp: 0 },
+            usdToGbp = { rate: 0.74, timestamp: 0 },
+        } = await store.get(["currency", "gbpToUsd", "usdToGbp"]);
+        const rate = currency === "$" ? gbpToUsd.rate : usdToGbp.rate;
+
         for (const element of elements) {
-            const symbol = extractSymbol(element.textContent);
-            if (symbol !== "£") continue;
+            let originalText = element.getAttribute("data-original-text");
+            if (!originalText) {
+                element.setAttribute(
+                    "data-original-text",
+                    element.textContent || "",
+                );
+                originalText = element.textContent || "";
+            }
+            const originalSymbol = extractSymbol(originalText);
+            const currentSymbol = extractSymbol(element.textContent);
+            // Revert if already in original currency
+            if (
+                originalSymbol === currency &&
+                element.textContent !== originalText
+            ) {
+                element.textContent = originalText;
+                continue;
+            }
+            // Skip if already in the desired currency
+            if (currentSymbol === currency) continue;
 
             const elementRate = extractHourlyRate(element.textContent);
-            let modified = `$${(elementRate * rate).toFixed(2)}`;
-            element.setAttribute(
-                "data-original-text",
-                element.textContent || "",
-            );
+            let modified = `${currency}${(elementRate * rate).toFixed(2)}`;
             if (element.textContent.includes("/hr")) modified += "/hr";
             element.textContent = modified;
         }
@@ -76,7 +115,7 @@ class ConvertCurrencyEnhancement implements Enhancement {
 }
 
 class HighlightRatesEnhancement implements Enhancement {
-    apply() {
+    async apply() {
         const elements = document.querySelectorAll<HTMLElement>(
             "[data-testid='study-tag-reward-per-hour']",
         );
@@ -87,9 +126,24 @@ class HighlightRatesEnhancement implements Enhancement {
             }
 
             const rate = extractHourlyRate(element.textContent);
-            if (isNaN(rate)) return;
+            const symbol = extractSymbol(element.textContent);
+            if (isNaN(rate) || !symbol) return;
 
-            element.style.backgroundColor = rateToColor(rate);
+            const {
+                gbpToUsd = { rate: 1.35, timestamp: 0 },
+                usdToGbp = { rate: 0.74, timestamp: 0 },
+            } = await store.get(["gbpToUsd", "usdToGbp"]);
+
+            const min =
+                symbol === "$"
+                    ? MIN_AMOUNT_PER_HOUR
+                    : MIN_AMOUNT_PER_HOUR * usdToGbp.rate;
+            const max =
+                symbol === "$"
+                    ? MAX_AMOUNT_PER_HOUR
+                    : MAX_AMOUNT_PER_HOUR * usdToGbp.rate;
+
+            element.style.backgroundColor = rateToColor(rate, min, max);
 
             if (!element.classList.contains("pe-rate-highlight"))
                 element.classList.add("pe-rate-highlight");
@@ -108,4 +162,4 @@ class HighlightRatesEnhancement implements Enhancement {
 const highlightRatesEnhancement = new HighlightRatesEnhancement();
 const convertCurrencyEnhancement = new ConvertCurrencyEnhancement();
 
-export { updateGbpRate, convertCurrencyEnhancement, highlightRatesEnhancement };
+export { updateRates, convertCurrencyEnhancement, highlightRatesEnhancement };
