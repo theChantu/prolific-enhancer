@@ -1,13 +1,17 @@
 # Prolific Enhancer
 
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Version](https://img.shields.io/github/package-json/v/theChantu/prolific-enhancer/main?color=green)
+
 A JavaScript userscript that augments the Prolific user experience.
 
 ## Features
 
-- **Color Code:** Applies logarithmic color scaling to hourly rates\.
+- **Color Code:** Applies logarithmic color scaling to hourly rates to highlight high vs low paying studies.
 - **Currency Conversion:** Converts GBP values to USD.
-- **Direct Survey Links:** Adds direct links to each survey to allow taking part in a study faster.
+- **Direct Survey Links:** Adds "Take part" buttons directly to each survey.
 - **Notifications:** Background alerts for new studies.
+- **Settings:** Toggle any feature directly from the Userscript menu.
 
 ## Screenshots
 
@@ -34,10 +38,12 @@ A JavaScript userscript that augments the Prolific user experience.
 
 ## Usage
 
-- Log in to [Prolific](https://app.prolific.com/).
-- Open the studies page to see the enhancements.
-- Notifications only work when a tab is open on the studies page.
-- The script will automatically run in the background.
+1. **Dashboard:** Log in to [Prolific](https://app.prolific.com/) and open the "Studies" tab.
+2. **Settings:** To toggle features (e.g., turn off Currency Conversion):
+    - Click your Userscript Manager icon (Violentmonkey/Tampermonkey) in the browser toolbar.
+    - Look under "Prolific Enhancer" to see the "Enable/Disable" commands.
+    - Click a command to toggle it. The page updates instantly.
+3. **Notifications:** Keep the Prolific tab open (it can be in the background) to receive alerts.
 
 ## Development
 
@@ -79,3 +85,7 @@ Build and watch for changes
 ```
 npm run watch
 ```
+
+## License
+
+Distributed under the MIT License. See `LICENSE` for more information.
