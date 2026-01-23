@@ -8,7 +8,7 @@ A JavaScript userscript that augments the Prolific user experience.
 ## Features
 
 - **Color Code:** Applies logarithmic color scaling to hourly rates to highlight high vs low paying studies.
-- **Currency Conversion:** Converts GBP values to USD.
+- **Currency Conversion:** Supports conversion to either USD or GBP.
 - **Direct Survey Links:** Adds "Take part" buttons directly to each survey.
 - **Notifications:** Background alerts for new studies.
 - **Settings:** Toggle any feature directly from the Userscript menu.
