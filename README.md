@@ -1,7 +1,7 @@
 # Prolific Enhancer
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Version](https://img.shields.io/github/package-json/v/theChantu/prolific-enhancer/main?color=green)
+![Version](https://img.shields.io/github/package-json/v/theChantu/prolific-enhancer?color=gre)
 
 A JavaScript userscript that augments the Prolific user experience.
 
