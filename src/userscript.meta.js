@@ -14,6 +14,8 @@
 // @grant        GM.openInTab
 // @grant        GM.addStyle
 // @grant        GM.getResourceUrl
+// @grant        GM.registerMenuCommand
+// @grant        GM.unregisterMenuCommand
 // @resource     prolific_logo https://app.prolific.com/apple-touch-icon.png
 // @downloadURL  https://github.com/theChantu/prolific-enhancer/raw/main/dist/prolific-enhancer.user.js
 // ==/UserScript==

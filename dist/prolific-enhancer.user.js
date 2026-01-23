@@ -14,6 +14,8 @@
 // @grant        GM.openInTab
 // @grant        GM.addStyle
 // @grant        GM.getResourceUrl
+// @grant        GM.registerMenuCommand
+// @grant        GM.unregisterMenuCommand
 // @resource     prolific_logo https://app.prolific.com/apple-touch-icon.png
 // @downloadURL  https://github.com/theChantu/prolific-enhancer/raw/main/dist/prolific-enhancer.user.js
 // ==/UserScript==
@@ -21,43 +23,64 @@
 "use strict";
 (() => {
   // src/store.ts
-  var store = {
-    async get(arg) {
-      if (Array.isArray(arg)) {
-        return GM.getValues([...arg]);
-      }
-      const keys = Object.keys(arg);
-      const values = await GM.getValues(keys);
-      return { ...arg, ...values };
-    },
-    set: async (values) => {
-      await GM.setValues(values);
-    }
+  var vmSettingsDefaults = {
+    enableCurrencyConversion: true,
+    enableHighlightRates: true,
+    enableSurveyLinks: true,
+    enableNewSurveyNotifications: true
   };
+  function createStore() {
+    const listeners = /* @__PURE__ */ new Set();
+    return {
+      async get(arg) {
+        if (Array.isArray(arg)) {
+          return GM.getValues([...arg]);
+        }
+        const keys = Object.keys(arg);
+        const values = await GM.getValues(keys);
+        return { ...arg, ...values };
+      },
+      set: async (values) => {
+        await GM.setValues(values);
+        for (const listener of listeners) listener(values);
+      },
+      subscribe(listener) {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      }
+    };
+  }
+  var store = createStore();
   var store_default = store;
 
   // src/features/links.ts
-  function insertSurveyLinks() {
-    const surveys = document.querySelectorAll('li[data-testid^="study-"]');
-    for (const survey of surveys) {
-      const testid = survey.getAttribute("data-testid");
-      if (!testid) continue;
-      const surveyId = testid.replace("study-", "");
-      const studyContent = survey.querySelector("div.study-content");
-      if (studyContent && !studyContent.querySelector(".pe-link")) {
-        const container = document.createElement("div");
-        const link = document.createElement("a");
-        container.className = "pe-btn-container";
-        container.appendChild(link);
-        link.className = "pe-link pe-custom-btn";
-        link.href = `https://app.prolific.com/studies/${surveyId}`;
-        link.textContent = "Take part in this study";
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        studyContent.appendChild(container);
+  var SurveyLinksEnhancement = class {
+    apply() {
+      const surveys = document.querySelectorAll('li[data-testid^="study-"]');
+      for (const survey of surveys) {
+        const testid = survey.getAttribute("data-testid");
+        if (!testid) continue;
+        const surveyId = testid.replace("study-", "");
+        const studyContent = survey.querySelector("div.study-content");
+        if (studyContent && !studyContent.querySelector(".pe-link")) {
+          const container = document.createElement("div");
+          const link = document.createElement("a");
+          container.className = "pe-btn-container";
+          container.appendChild(link);
+          link.className = "pe-link pe-custom-btn";
+          link.href = `https://app.prolific.com/studies/${surveyId}`;
+          link.textContent = "Take part in this study";
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          studyContent.appendChild(container);
+        }
       }
     }
-  }
+    revert() {
+      document.querySelectorAll(".pe-btn-container").forEach((el) => el.remove());
+    }
+  };
+  var surveyLinksEnhancement = new SurveyLinksEnhancement();
 
   // src/utils.ts
   var log = (...args) => {
@@ -103,31 +126,36 @@
     await store_default.set({ surveys });
     return true;
   }
-  async function notifyNewSurveys() {
-    const surveys = document.querySelectorAll(
-      'li[data-testid^="study-"]'
-    );
-    if (surveys.length === 0) return;
-    const assets = await getSharedResources();
-    for (const survey of surveys) {
-      const surveyId = survey.getAttribute("data-testid")?.replace("study-", "");
-      if (!surveyId) continue;
-      const isNewFingerprint = await saveSurveyFingerprint(surveyId);
-      if (!isNewFingerprint || !document.hidden) continue;
-      const surveyTitle = survey.querySelector("h2.title")?.textContent || "New Survey";
-      const surveyReward = survey.querySelector("span.reward")?.textContent || "Unknown Reward";
-      if (!surveyId) continue;
-      const surveyLink = `https://app.prolific.com/studies/${surveyId}`;
-      GM.notification({
-        title: surveyTitle,
-        text: surveyReward,
-        image: assets["prolific_logo"],
-        onclick: () => GM.openInTab(surveyLink, {
-          active: true
-        })
-      });
+  var NewSurveyNotificationsEnhancement = class {
+    async apply() {
+      const surveys = document.querySelectorAll(
+        'li[data-testid^="study-"]'
+      );
+      if (surveys.length === 0) return;
+      const assets = await getSharedResources();
+      for (const survey of surveys) {
+        const surveyId = survey.getAttribute("data-testid")?.replace("study-", "");
+        if (!surveyId) continue;
+        const isNewFingerprint = await saveSurveyFingerprint(surveyId);
+        if (!isNewFingerprint || !document.hidden) continue;
+        const surveyTitle = survey.querySelector("h2.title")?.textContent || "New Survey";
+        const surveyReward = survey.querySelector("span.reward")?.textContent || "Unknown Reward";
+        if (!surveyId) continue;
+        const surveyLink = `https://app.prolific.com/studies/${surveyId}`;
+        GM.notification({
+          title: surveyTitle,
+          text: surveyReward,
+          image: assets["prolific_logo"],
+          onclick: () => GM.openInTab(surveyLink, {
+            active: true
+          })
+        });
+      }
     }
-  }
+    revert() {
+    }
+  };
+  var newSurveyNotificationsEnhancement = new NewSurveyNotificationsEnhancement();
 
   // src/features/rates.ts
   async function fetchGbpRate() {
@@ -160,43 +188,62 @@
     const g = Math.round(255 * bias);
     return `rgba(${r}, ${g}, 0, 0.63)`;
   }
-  function highlightElement(element) {
-    if (element.classList.contains("pe-rate-highlight")) return;
-    const rate = extractHourlyRate(element.textContent);
-    if (isNaN(rate)) return;
-    element.style.backgroundColor = rateToColor(rate);
-    element.classList.add("pe-rate-highlight");
-  }
-  function highlightHourlyRates() {
-    const elements = document.querySelectorAll(
-      "[data-testid='study-tag-reward-per-hour']"
-    );
-    for (const element of elements) {
-      if (element.getAttribute("data-testid") === "study-tag-reward") {
-        continue;
-      }
-      highlightElement(element);
-    }
-  }
   function extractSymbol(text) {
     const m = text.match(/[£$€]/);
     return m ? m[0] : null;
   }
-  async function convertGbpToUsd() {
-    const elements = document.querySelectorAll("span.reward span");
-    const { gbpToUsd } = await store_default.get({
-      gbpToUsd: { rate: 1.35, timestamp: 0 }
-    });
-    const { rate } = gbpToUsd;
-    for (const element of elements) {
-      const symbol = extractSymbol(element.textContent);
-      if (symbol !== "\xA3") continue;
-      const elementRate = extractHourlyRate(element.textContent);
-      let modified = `$${(elementRate * rate).toFixed(2)}`;
-      if (element.textContent.includes("/hr")) modified += "/hr";
-      element.textContent = modified;
+  var ConvertCurrencyEnhancement = class {
+    async apply() {
+      const elements = document.querySelectorAll("span.reward span");
+      const { gbpToUsd } = await store_default.get({
+        gbpToUsd: { rate: 1.35, timestamp: 0 }
+      });
+      const { rate } = gbpToUsd;
+      for (const element of elements) {
+        const symbol = extractSymbol(element.textContent);
+        if (symbol !== "\xA3") continue;
+        const elementRate = extractHourlyRate(element.textContent);
+        let modified = `$${(elementRate * rate).toFixed(2)}`;
+        element.setAttribute(
+          "data-original-text",
+          element.textContent || ""
+        );
+        if (element.textContent.includes("/hr")) modified += "/hr";
+        element.textContent = modified;
+      }
     }
-  }
+    revert() {
+      document.querySelectorAll("span[data-original-text]").forEach((el) => {
+        el.textContent = el.getAttribute("data-original-text") || "";
+        el.removeAttribute("data-original-text");
+      });
+    }
+  };
+  var HighlightRatesEnhancement = class {
+    apply() {
+      const elements = document.querySelectorAll(
+        "[data-testid='study-tag-reward-per-hour']"
+      );
+      for (const element of elements) {
+        if (element.getAttribute("data-testid") === "study-tag-reward") {
+          continue;
+        }
+        const rate = extractHourlyRate(element.textContent);
+        if (isNaN(rate)) return;
+        element.style.backgroundColor = rateToColor(rate);
+        if (!element.classList.contains("pe-rate-highlight"))
+          element.classList.add("pe-rate-highlight");
+      }
+    }
+    revert() {
+      document.querySelectorAll(".pe-rate-highlight").forEach((el) => {
+        el.style.backgroundColor = "";
+        el.classList.remove("pe-rate-highlight");
+      });
+    }
+  };
+  var highlightRatesEnhancement = new HighlightRatesEnhancement();
+  var convertCurrencyEnhancement = new ConvertCurrencyEnhancement();
 
   // src/main.ts
   (async function() {
@@ -207,6 +254,10 @@
       await store_default.set({
         surveys: {},
         gbpToUsd: { rate: 1.35, timestamp: 0 },
+        enableCurrencyConversion: true,
+        enableHighlightRates: true,
+        enableSurveyLinks: true,
+        enableNewSurveyNotifications: true,
         initialized: true
       });
     }
@@ -247,11 +298,32 @@
       };
     }
     async function runEnhancements() {
-      await updateGbpRate();
-      await convertGbpToUsd();
-      highlightHourlyRates();
-      insertSurveyLinks();
-      await notifyNewSurveys();
+      const {
+        enableCurrencyConversion = true,
+        enableHighlightRates = true,
+        enableSurveyLinks = true,
+        enableNewSurveyNotifications = true
+      } = await store_default.get([
+        "enableCurrencyConversion",
+        "enableHighlightRates",
+        "enableSurveyLinks",
+        "enableNewSurveyNotifications"
+      ]);
+      await Promise.all([
+        !enableCurrencyConversion && convertCurrencyEnhancement.revert(),
+        !enableHighlightRates && highlightRatesEnhancement.revert(),
+        !enableSurveyLinks && surveyLinksEnhancement.revert(),
+        !enableNewSurveyNotifications && newSurveyNotificationsEnhancement.revert()
+      ]);
+      if (enableCurrencyConversion) {
+        await updateGbpRate();
+        await convertCurrencyEnhancement.apply();
+      }
+      await Promise.all([
+        enableHighlightRates && highlightRatesEnhancement.apply(),
+        enableSurveyLinks && surveyLinksEnhancement.apply(),
+        enableNewSurveyNotifications && newSurveyNotificationsEnhancement.apply()
+      ]);
     }
     await runEnhancements();
     const debounced = debounce(async () => {
@@ -266,5 +338,40 @@
     });
     const config = { childList: true, subtree: true };
     observer.observe(document.body, config);
+    function createMenuCommandRefresher() {
+      const commandIds = [];
+      return async function refreshMenuCommands2() {
+        for (const id of commandIds) {
+          GM.unregisterMenuCommand(id);
+        }
+        commandIds.length = 0;
+        const values = await store_default.get(
+          Object.keys(
+            vmSettingsDefaults
+          )
+        );
+        const settings = { ...vmSettingsDefaults, ...values };
+        for (const setting of Object.keys(
+          settings
+        )) {
+          const settingName = setting.replace("enable", "").split(/(?=[A-Z])/).join(" ");
+          const id = GM.registerMenuCommand(
+            `${settings[setting] ? "Disable" : "Enable"} ${settingName}`,
+            async () => {
+              await store_default.set({
+                [setting]: !settings[setting]
+              });
+              await runEnhancements();
+            }
+          );
+          commandIds.push(id);
+        }
+      };
+    }
+    const refreshMenuCommands = createMenuCommandRefresher();
+    await refreshMenuCommands();
+    const unsubscribe = store_default.subscribe(async (changed) => {
+      await refreshMenuCommands();
+    });
   })();
 })();

@@ -1,3 +1,7 @@
-export { insertSurveyLinks } from "./links";
-export { notifyNewSurveys } from "./notifications";
-export { convertGbpToUsd, highlightHourlyRates, updateGbpRate } from "./rates";
+export { surveyLinksEnhancement } from "./links";
+export { newSurveyNotificationsEnhancement } from "./notifications";
+export {
+    convertCurrencyEnhancement,
+    highlightRatesEnhancement,
+    updateGbpRate,
+} from "./rates";

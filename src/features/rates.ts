@@ -1,5 +1,6 @@
 import store from "../store";
 import { GBP_TO_USD_FETCH_INTERVAL_MS } from "../constants.ts";
+import type { Enhancement } from "../types.ts";
 
 async function fetchGbpRate() {
     const response = await fetch("https://open.er-api.com/v6/latest/GBP");
@@ -40,48 +41,71 @@ function rateToColor(rate: number, min = 7, max = 15) {
     return `rgba(${r}, ${g}, 0, 0.63)`;
 }
 
-function highlightElement(element: HTMLElement) {
-    if (element.classList.contains("pe-rate-highlight")) return;
-    const rate = extractHourlyRate(element.textContent);
-    if (isNaN(rate)) return;
-
-    element.style.backgroundColor = rateToColor(rate);
-    element.classList.add("pe-rate-highlight");
-}
-
-function highlightHourlyRates() {
-    const elements = document.querySelectorAll<HTMLElement>(
-        "[data-testid='study-tag-reward-per-hour']",
-    );
-    for (const element of elements) {
-        // Check if the element should be ignored
-        if (element.getAttribute("data-testid") === "study-tag-reward") {
-            continue;
-        }
-        highlightElement(element);
-    }
-}
-
 function extractSymbol(text: string) {
     const m = text.match(/[£$€]/);
     return m ? m[0] : null;
 }
 
-async function convertGbpToUsd() {
-    const elements = document.querySelectorAll("span.reward span");
-    const { gbpToUsd } = await store.get({
-        gbpToUsd: { rate: 1.35, timestamp: 0 },
-    });
-    const { rate } = gbpToUsd;
-    for (const element of elements) {
-        const symbol = extractSymbol(element.textContent);
-        if (symbol !== "£") continue;
+class ConvertCurrencyEnhancement implements Enhancement {
+    async apply() {
+        const elements = document.querySelectorAll("span.reward span");
+        const { gbpToUsd } = await store.get({
+            gbpToUsd: { rate: 1.35, timestamp: 0 },
+        });
+        const { rate } = gbpToUsd;
+        for (const element of elements) {
+            const symbol = extractSymbol(element.textContent);
+            if (symbol !== "£") continue;
 
-        const elementRate = extractHourlyRate(element.textContent);
-        let modified = `$${(elementRate * rate).toFixed(2)}`;
-        if (element.textContent.includes("/hr")) modified += "/hr";
-        element.textContent = modified;
+            const elementRate = extractHourlyRate(element.textContent);
+            let modified = `$${(elementRate * rate).toFixed(2)}`;
+            element.setAttribute(
+                "data-original-text",
+                element.textContent || "",
+            );
+            if (element.textContent.includes("/hr")) modified += "/hr";
+            element.textContent = modified;
+        }
+    }
+    revert() {
+        document.querySelectorAll("span[data-original-text]").forEach((el) => {
+            el.textContent = el.getAttribute("data-original-text") || "";
+            el.removeAttribute("data-original-text");
+        });
     }
 }
 
-export { updateGbpRate, convertGbpToUsd, highlightHourlyRates };
+class HighlightRatesEnhancement implements Enhancement {
+    apply() {
+        const elements = document.querySelectorAll<HTMLElement>(
+            "[data-testid='study-tag-reward-per-hour']",
+        );
+        for (const element of elements) {
+            // Check if the element should be ignored
+            if (element.getAttribute("data-testid") === "study-tag-reward") {
+                continue;
+            }
+
+            const rate = extractHourlyRate(element.textContent);
+            if (isNaN(rate)) return;
+
+            element.style.backgroundColor = rateToColor(rate);
+
+            if (!element.classList.contains("pe-rate-highlight"))
+                element.classList.add("pe-rate-highlight");
+        }
+    }
+    revert() {
+        document
+            .querySelectorAll<HTMLElement>(".pe-rate-highlight")
+            .forEach((el) => {
+                el.style.backgroundColor = "";
+                el.classList.remove("pe-rate-highlight");
+            });
+    }
+}
+
+const highlightRatesEnhancement = new HighlightRatesEnhancement();
+const convertCurrencyEnhancement = new ConvertCurrencyEnhancement();
+
+export { updateGbpRate, convertCurrencyEnhancement, highlightRatesEnhancement };

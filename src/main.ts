@@ -1,12 +1,13 @@
 import store from "./store";
 import {
-    convertGbpToUsd,
-    notifyNewSurveys,
-    highlightHourlyRates,
-    insertSurveyLinks,
+    convertCurrencyEnhancement,
+    newSurveyNotificationsEnhancement,
+    highlightRatesEnhancement,
+    surveyLinksEnhancement,
     updateGbpRate,
 } from "./features";
 import { log } from "./utils";
+import { vmSettingsDefaults } from "./store";
 
 (async function () {
     "use strict";
@@ -20,6 +21,10 @@ import { log } from "./utils";
         await store.set({
             surveys: {},
             gbpToUsd: { rate: 1.35, timestamp: 0 },
+            enableCurrencyConversion: true,
+            enableHighlightRates: true,
+            enableSurveyLinks: true,
+            enableNewSurveyNotifications: true,
             initialized: true,
         });
     }
@@ -68,13 +73,39 @@ import { log } from "./utils";
     }
 
     async function runEnhancements() {
-        // Fetch the GBP to USD rate before conversion
-        await updateGbpRate();
+        const {
+            enableCurrencyConversion = true,
+            enableHighlightRates = true,
+            enableSurveyLinks = true,
+            enableNewSurveyNotifications = true,
+        } = await store.get([
+            "enableCurrencyConversion",
+            "enableHighlightRates",
+            "enableSurveyLinks",
+            "enableNewSurveyNotifications",
+        ]);
+
+        await Promise.all([
+            !enableCurrencyConversion && convertCurrencyEnhancement.revert(),
+            !enableHighlightRates && highlightRatesEnhancement.revert(),
+            !enableSurveyLinks && surveyLinksEnhancement.revert(),
+            !enableNewSurveyNotifications &&
+                newSurveyNotificationsEnhancement.revert(),
+        ]);
+
         // Convert to USD before highlighting rates
-        await convertGbpToUsd();
-        highlightHourlyRates();
-        insertSurveyLinks();
-        await notifyNewSurveys();
+        if (enableCurrencyConversion) {
+            // Fetch the latest GBP to USD rate before conversion
+            await updateGbpRate();
+            await convertCurrencyEnhancement.apply();
+        }
+
+        await Promise.all([
+            enableHighlightRates && highlightRatesEnhancement.apply(),
+            enableSurveyLinks && surveyLinksEnhancement.apply(),
+            enableNewSurveyNotifications &&
+                newSurveyNotificationsEnhancement.apply(),
+        ]);
     }
 
     // Apply the enhancements initially
@@ -95,4 +126,49 @@ import { log } from "./utils";
 
     const config = { childList: true, subtree: true };
     observer.observe(document.body, config);
+
+    function createMenuCommandRefresher() {
+        const commandIds: ReturnType<typeof GM.registerMenuCommand>[] = [];
+
+        return async function refreshMenuCommands() {
+            for (const id of commandIds) {
+                GM.unregisterMenuCommand(id);
+            }
+            commandIds.length = 0;
+
+            const values = await store.get(
+                Object.keys(
+                    vmSettingsDefaults,
+                ) as (keyof typeof vmSettingsDefaults)[],
+            );
+
+            const settings = { ...vmSettingsDefaults, ...values };
+
+            for (const setting of Object.keys(
+                settings,
+            ) as (keyof typeof settings)[]) {
+                const settingName = setting
+                    .replace("enable", "")
+                    .split(/(?=[A-Z])/)
+                    .join(" ");
+
+                const id = GM.registerMenuCommand(
+                    `${settings[setting] ? "Disable" : "Enable"} ${settingName}`,
+                    async () => {
+                        await store.set({
+                            [setting]: !settings[setting],
+                        });
+                        await runEnhancements();
+                    },
+                );
+                commandIds.push(id);
+            }
+        };
+    }
+    const refreshMenuCommands = createMenuCommandRefresher();
+    // Initial menu command setup
+    await refreshMenuCommands();
+    const unsubscribe = store.subscribe(async (changed) => {
+        await refreshMenuCommands();
+    });
 })();

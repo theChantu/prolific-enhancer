@@ -2,4 +2,9 @@ type Surveys = {
     [fingerprint: string]: number;
 };
 
-export type { Surveys };
+type Enhancement = {
+    apply(): void;
+    revert(): void;
+};
+
+export type { Surveys, Enhancement };
