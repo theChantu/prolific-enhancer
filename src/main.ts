@@ -1,4 +1,4 @@
-import store from "./store";
+import store from "./store/store";
 import {
     convertCurrencyEnhancement,
     newSurveyNotificationsEnhancement,
@@ -7,34 +7,12 @@ import {
     updateRates,
 } from "./features";
 import { log } from "./utils";
-import { vmSettingsDefaults } from "./store";
+import { defaultVMSettings } from "./store/defaults";
 
 (async function () {
     "use strict";
 
     log("Loaded.");
-
-    // Run on extension setup
-    const { initialized } = await store.get({ initialized: false });
-    if (!initialized) {
-        // Set default values
-        await store.set({
-            currency: "$",
-            surveys: {},
-            rates: {
-                timestamp: 0,
-                gbpToUsd: { rate: 1.35 },
-                usdToGbp: { rate: 0.74 },
-            },
-            gbpToUsd: { rate: 1.35, timestamp: 0 },
-            usdToGbp: { rate: 0.74, timestamp: 0 },
-            enableCurrencyConversion: true,
-            enableHighlightRates: true,
-            enableSurveyLinks: true,
-            enableNewSurveyNotifications: true,
-            initialized: true,
-        });
-    }
 
     GM.addStyle(`
         .pe-custom-btn {
@@ -143,8 +121,14 @@ import { vmSettingsDefaults } from "./store";
             }
             commandIds.length = 0;
 
-            const { currency } = await store.get({ currency: "$" });
+            const settings = await store.get(
+                Object.keys(
+                    defaultVMSettings,
+                ) as (keyof typeof defaultVMSettings)[],
+            );
 
+            const { currency } = settings;
+            // Currency command
             const id = GM.registerMenuCommand(
                 `Currency: ${currency}`,
                 async () => {
@@ -156,27 +140,21 @@ import { vmSettingsDefaults } from "./store";
             );
             commandIds.push(id);
 
-            const values = await store.get([
-                ...(Object.keys(
-                    vmSettingsDefaults,
-                ) as (keyof typeof vmSettingsDefaults)[]),
-            ]);
-
-            const booleanSettings = { ...vmSettingsDefaults, ...values };
-
-            for (const setting of Object.keys(
-                booleanSettings,
-            ) as (keyof typeof booleanSettings)[]) {
-                const settingName = setting
+            const toggleSettings = Object.keys(settings).filter((key) =>
+                key.startsWith("enable"),
+            ) as (keyof typeof defaultVMSettings)[];
+            for (const setting of toggleSettings) {
+                const formattedSettingName = setting
                     .replace("enable", "")
                     .split(/(?=[A-Z])/)
                     .join(" ");
 
+                // Toggle commands
                 const id = GM.registerMenuCommand(
-                    `${booleanSettings[setting] ? "Disable" : "Enable"} ${settingName}`,
+                    `${settings[setting] ? "Disable" : "Enable"} ${formattedSettingName}`,
                     async () => {
                         await store.set({
-                            [setting]: !booleanSettings[setting],
+                            [setting]: !settings[setting],
                         });
                         await runEnhancements();
                     },

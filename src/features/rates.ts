@@ -1,4 +1,4 @@
-import store from "../store";
+import store from "../store/store.ts";
 import {
     GBP_TO_USD_FETCH_INTERVAL_MS,
     MIN_AMOUNT_PER_HOUR,
@@ -19,13 +19,7 @@ async function fetchUsdRate() {
 }
 
 async function updateRates() {
-    const { rates } = await store.get({
-        rates: {
-            timestamp: 0,
-            gbpToUsd: { rate: 1.35 },
-            usdToGbp: { rate: 0.74 },
-        },
-    });
+    const { rates } = await store.get(["rates"]);
 
     const now = Date.now();
     if (now - rates.timestamp < GBP_TO_USD_FETCH_INTERVAL_MS) return;
@@ -71,12 +65,9 @@ function extractSymbol(text: string) {
 class ConvertCurrencyEnhancement implements Enhancement {
     async apply() {
         const elements = document.querySelectorAll("span.reward span");
-        const {
-            currency = "$",
-            gbpToUsd = { rate: 1.35, timestamp: 0 },
-            usdToGbp = { rate: 0.74, timestamp: 0 },
-        } = await store.get(["currency", "gbpToUsd", "usdToGbp"]);
-        const rate = currency === "$" ? gbpToUsd.rate : usdToGbp.rate;
+        const { currency, rates } = await store.get(["currency", "rates"]);
+        const rate =
+            currency === "$" ? rates.gbpToUsd.rate : rates.usdToGbp.rate;
 
         for (const element of elements) {
             let originalText = element.getAttribute("data-original-text");
@@ -129,19 +120,16 @@ class HighlightRatesEnhancement implements Enhancement {
             const symbol = extractSymbol(element.textContent);
             if (isNaN(rate) || !symbol) return;
 
-            const {
-                gbpToUsd = { rate: 1.35, timestamp: 0 },
-                usdToGbp = { rate: 0.74, timestamp: 0 },
-            } = await store.get(["gbpToUsd", "usdToGbp"]);
+            const { rates } = await store.get(["rates"]);
 
             const min =
                 symbol === "$"
                     ? MIN_AMOUNT_PER_HOUR
-                    : MIN_AMOUNT_PER_HOUR * usdToGbp.rate;
+                    : MIN_AMOUNT_PER_HOUR * rates.usdToGbp.rate;
             const max =
                 symbol === "$"
                     ? MAX_AMOUNT_PER_HOUR
-                    : MAX_AMOUNT_PER_HOUR * usdToGbp.rate;
+                    : MAX_AMOUNT_PER_HOUR * rates.usdToGbp.rate;
 
             element.style.backgroundColor = rateToColor(rate, min, max);
 

@@ -6,7 +6,9 @@ const watch = process.argv.includes("--watch");
 
 const ctx = await esbuild.context({
     entryPoints: ["src/main.ts"],
+    format: "iife",
     bundle: true,
+    logLevel: "info",
     outfile: "dist/prolific-enhancer.user.js",
     target: ["ESNext"],
     banner: { js: banner },
@@ -20,4 +22,5 @@ if (watch) {
 } else {
     await ctx.rebuild();
     await ctx.dispose();
+    console.log("Build complete.");
 }

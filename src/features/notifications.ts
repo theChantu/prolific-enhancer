@@ -1,4 +1,4 @@
-import store from "../store";
+import store from "../store/store";
 import { getSharedResources } from "../utils";
 import { NOTIFY_TTL_MS } from "../constants";
 import type { Enhancement } from "../types";
@@ -6,7 +6,7 @@ import type { Enhancement } from "../types";
 async function saveSurveyFingerprint(fingerprint: string) {
     const now = Date.now();
 
-    const { surveys: immutableSurveys } = await store.get({ surveys: {} });
+    const { surveys: immutableSurveys } = await store.get(["surveys"]);
     const surveys = structuredClone(immutableSurveys);
 
     for (const [key, timestamp] of Object.entries(surveys)) {

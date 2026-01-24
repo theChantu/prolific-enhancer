@@ -22,23 +22,31 @@
 
 "use strict";
 (() => {
-  // src/store.ts
-  var vmSettingsDefaults = {
+  // src/store/defaults.ts
+  var defaultVMSettings = Object.freeze({
+    rates: {
+      timestamp: 0,
+      gbpToUsd: { rate: 1.35 },
+      usdToGbp: { rate: 0.74 }
+    },
     enableCurrencyConversion: true,
     enableHighlightRates: true,
     enableSurveyLinks: true,
-    enableNewSurveyNotifications: true
-  };
+    enableNewSurveyNotifications: true,
+    initialized: false,
+    surveys: {},
+    currency: "$"
+  });
+
+  // src/store/store.ts
   function createStore() {
     const listeners = /* @__PURE__ */ new Set();
     return {
-      async get(arg) {
-        if (Array.isArray(arg)) {
-          return GM.getValues([...arg]);
-        }
-        const keys = Object.keys(arg);
-        const values = await GM.getValues(keys);
-        return { ...arg, ...values };
+      get: async (keys) => {
+        const values = await GM.getValues([...keys]);
+        return Object.fromEntries(
+          keys.map((k) => [k, values[k] ?? defaultVMSettings[k]])
+        );
       },
       set: async (values) => {
         await GM.setValues(values);
@@ -114,7 +122,7 @@
   // src/features/notifications.ts
   async function saveSurveyFingerprint(fingerprint) {
     const now = Date.now();
-    const { surveys: immutableSurveys } = await store_default.get({ surveys: {} });
+    const { surveys: immutableSurveys } = await store_default.get(["surveys"]);
     const surveys = structuredClone(immutableSurveys);
     for (const [key, timestamp] of Object.entries(surveys)) {
       if (now - timestamp >= NOTIFY_TTL_MS) {
@@ -171,13 +179,7 @@
     return data.rates.GBP;
   }
   async function updateRates() {
-    const { rates } = await store_default.get({
-      rates: {
-        timestamp: 0,
-        gbpToUsd: { rate: 1.35 },
-        usdToGbp: { rate: 0.74 }
-      }
-    });
+    const { rates } = await store_default.get(["rates"]);
     const now = Date.now();
     if (now - rates.timestamp < GBP_TO_USD_FETCH_INTERVAL_MS) return;
     const gbpToUsdRate = await fetchGbpRate().catch(console.error) || 1.35;
@@ -212,12 +214,8 @@
   var ConvertCurrencyEnhancement = class {
     async apply() {
       const elements = document.querySelectorAll("span.reward span");
-      const {
-        currency = "$",
-        gbpToUsd = { rate: 1.35, timestamp: 0 },
-        usdToGbp = { rate: 0.74, timestamp: 0 }
-      } = await store_default.get(["currency", "gbpToUsd", "usdToGbp"]);
-      const rate = currency === "$" ? gbpToUsd.rate : usdToGbp.rate;
+      const { currency, rates } = await store_default.get(["currency", "rates"]);
+      const rate = currency === "$" ? rates.gbpToUsd.rate : rates.usdToGbp.rate;
       for (const element of elements) {
         let originalText = element.getAttribute("data-original-text");
         if (!originalText) {
@@ -259,12 +257,9 @@
         const rate = extractHourlyRate(element.textContent);
         const symbol = extractSymbol(element.textContent);
         if (isNaN(rate) || !symbol) return;
-        const {
-          gbpToUsd = { rate: 1.35, timestamp: 0 },
-          usdToGbp = { rate: 0.74, timestamp: 0 }
-        } = await store_default.get(["gbpToUsd", "usdToGbp"]);
-        const min = symbol === "$" ? MIN_AMOUNT_PER_HOUR : MIN_AMOUNT_PER_HOUR * usdToGbp.rate;
-        const max = symbol === "$" ? MAX_AMOUNT_PER_HOUR : MAX_AMOUNT_PER_HOUR * usdToGbp.rate;
+        const { rates } = await store_default.get(["rates"]);
+        const min = symbol === "$" ? MIN_AMOUNT_PER_HOUR : MIN_AMOUNT_PER_HOUR * rates.usdToGbp.rate;
+        const max = symbol === "$" ? MAX_AMOUNT_PER_HOUR : MAX_AMOUNT_PER_HOUR * rates.usdToGbp.rate;
         element.style.backgroundColor = rateToColor(rate, min, max);
         if (!element.classList.contains("pe-rate-highlight"))
           element.classList.add("pe-rate-highlight");
@@ -284,25 +279,6 @@
   (async function() {
     "use strict";
     log("Loaded.");
-    const { initialized } = await store_default.get({ initialized: false });
-    if (!initialized) {
-      await store_default.set({
-        currency: "$",
-        surveys: {},
-        rates: {
-          timestamp: 0,
-          gbpToUsd: { rate: 1.35 },
-          usdToGbp: { rate: 0.74 }
-        },
-        gbpToUsd: { rate: 1.35, timestamp: 0 },
-        usdToGbp: { rate: 0.74, timestamp: 0 },
-        enableCurrencyConversion: true,
-        enableHighlightRates: true,
-        enableSurveyLinks: true,
-        enableNewSurveyNotifications: true,
-        initialized: true
-      });
-    }
     GM.addStyle(`
         .pe-custom-btn {
             padding: 8px 24px;
@@ -387,7 +363,12 @@
           GM.unregisterMenuCommand(id2);
         }
         commandIds.length = 0;
-        const { currency } = await store_default.get({ currency: "$" });
+        const settings = await store_default.get(
+          Object.keys(
+            defaultVMSettings
+          )
+        );
+        const { currency } = settings;
         const id = GM.registerMenuCommand(
           `Currency: ${currency}`,
           async () => {
@@ -398,21 +379,16 @@
           }
         );
         commandIds.push(id);
-        const values = await store_default.get([
-          ...Object.keys(
-            vmSettingsDefaults
-          )
-        ]);
-        const booleanSettings = { ...vmSettingsDefaults, ...values };
-        for (const setting of Object.keys(
-          booleanSettings
-        )) {
-          const settingName = setting.replace("enable", "").split(/(?=[A-Z])/).join(" ");
+        const toggleSettings = Object.keys(settings).filter(
+          (key) => key.startsWith("enable")
+        );
+        for (const setting of toggleSettings) {
+          const formattedSettingName = setting.replace("enable", "").split(/(?=[A-Z])/).join(" ");
           const id2 = GM.registerMenuCommand(
-            `${booleanSettings[setting] ? "Disable" : "Enable"} ${settingName}`,
+            `${settings[setting] ? "Disable" : "Enable"} ${formattedSettingName}`,
             async () => {
               await store_default.set({
-                [setting]: !booleanSettings[setting]
+                [setting]: !settings[setting]
               });
               await runEnhancements();
             }
