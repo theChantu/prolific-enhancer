@@ -1,10 +1,12 @@
 import store from "../store/store.ts";
 import {
-    GBP_TO_USD_FETCH_INTERVAL_MS,
+    CONVERSION_RATES_FETCH_INTERVAL_MS,
     MIN_AMOUNT_PER_HOUR,
     MAX_AMOUNT_PER_HOUR,
 } from "../constants.ts";
-import type { Enhancement } from "../types.ts";
+import type { Currencies, Enhancement } from "../types.ts";
+import { defaultVMSettings } from "../store/defaults.ts";
+import type { VMSettings } from "../types.ts";
 
 async function fetchGbpRate() {
     const response = await fetch("https://open.er-api.com/v6/latest/GBP");
@@ -18,21 +20,52 @@ async function fetchUsdRate() {
     return data.rates.GBP;
 }
 
+type ConversionRates = VMSettings["conversionRates"];
+
+const fallbackRates: Omit<ConversionRates, "timestamp"> = Object.freeze({
+    GBP: { rates: { USD: 1.35, GBP: 1 } },
+    USD: { rates: { GBP: 0.74, USD: 1 } },
+});
+
+async function fetchRates() {
+    const currencies = Object.keys(
+        fallbackRates,
+    ) as (keyof typeof fallbackRates)[];
+    const conversionRates = {
+        ...fallbackRates,
+    };
+    for (const currency of currencies) {
+        try {
+            const response = await fetch(
+                `https://open.er-api.com/v6/latest/${currency}`,
+            );
+            const data = await response.json();
+
+            for (const c of currencies) {
+                if (c === currency) continue;
+                conversionRates[currency].rates[c] = data.rates[c];
+            }
+        } catch (error) {
+            console.error(error);
+            // Fallbacks are already set, so just continue
+        }
+    }
+
+    return conversionRates as ConversionRates;
+}
+
 async function updateRates() {
-    const { rates } = await store.get(["rates"]);
+    const { conversionRates } = await store.get(["conversionRates"]);
 
     const now = Date.now();
-    if (now - rates.timestamp < GBP_TO_USD_FETCH_INTERVAL_MS) return;
+    if (now - conversionRates.timestamp < CONVERSION_RATES_FETCH_INTERVAL_MS)
+        return;
 
-    const gbpToUsdRate = (await fetchGbpRate().catch(console.error)) || 1.35; // fallback rate
-    const usdToGbpRate = (await fetchUsdRate().catch(console.error)) || 0.74; // fallback rate
+    const newConversionRates = await fetchRates();
+    newConversionRates.timestamp = now;
 
     await store.set({
-        rates: {
-            timestamp: now,
-            gbpToUsd: { rate: gbpToUsdRate },
-            usdToGbp: { rate: usdToGbpRate },
-        },
+        conversionRates: newConversionRates,
     });
 }
 
@@ -62,37 +95,53 @@ function extractSymbol(text: string) {
     return m ? m[0] : null;
 }
 
+function getSymbol(currency: string) {
+    return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: currency,
+    })
+        .formatToParts(0)
+        .find((part) => part.type === "currency")?.value;
+}
+
 class ConvertCurrencyEnhancement implements Enhancement {
     async apply() {
         const elements = document.querySelectorAll("span.reward span");
-        const { currency, rates } = await store.get(["currency", "rates"]);
+        const { selectedCurrency, conversionRates } = await store.get([
+            "selectedCurrency",
+            "conversionRates",
+        ]);
+
+        const selectedSymbol = getSymbol(selectedCurrency);
         const rate =
-            currency === "$" ? rates.gbpToUsd.rate : rates.usdToGbp.rate;
+            selectedCurrency === "USD"
+                ? conversionRates.GBP.rates.USD
+                : conversionRates.USD.rates.GBP;
 
         for (const element of elements) {
-            let originalText = element.getAttribute("data-original-text");
-            if (!originalText) {
+            let sourceText = element.getAttribute("data-original-text");
+            if (!sourceText) {
                 element.setAttribute(
                     "data-original-text",
                     element.textContent || "",
                 );
-                originalText = element.textContent || "";
+                sourceText = element.textContent || "";
             }
-            const originalSymbol = extractSymbol(originalText);
             const currentSymbol = extractSymbol(element.textContent);
-            // Revert if already in original currency
+            const sourceSymbol = extractSymbol(sourceText);
             if (
-                originalSymbol === currency &&
-                element.textContent !== originalText
+                sourceSymbol === selectedCurrency &&
+                element.textContent !== sourceText
             ) {
-                element.textContent = originalText;
+                // Revert to original text
+                element.textContent = sourceText;
                 continue;
             }
             // Skip if already in the desired currency
-            if (currentSymbol === currency) continue;
+            if (currentSymbol === selectedSymbol) continue;
 
             const elementRate = extractHourlyRate(element.textContent);
-            let modified = `${currency}${(elementRate * rate).toFixed(2)}`;
+            let modified = `${selectedSymbol}${(elementRate * rate).toFixed(2)}`;
             if (element.textContent.includes("/hr")) modified += "/hr";
             element.textContent = modified;
         }
@@ -120,16 +169,16 @@ class HighlightRatesEnhancement implements Enhancement {
             const symbol = extractSymbol(element.textContent);
             if (isNaN(rate) || !symbol) return;
 
-            const { rates } = await store.get(["rates"]);
+            const { conversionRates } = await store.get(["conversionRates"]);
 
             const min =
                 symbol === "$"
                     ? MIN_AMOUNT_PER_HOUR
-                    : MIN_AMOUNT_PER_HOUR * rates.usdToGbp.rate;
+                    : MIN_AMOUNT_PER_HOUR * conversionRates.USD.rates.GBP;
             const max =
                 symbol === "$"
                     ? MAX_AMOUNT_PER_HOUR
-                    : MAX_AMOUNT_PER_HOUR * rates.usdToGbp.rate;
+                    : MAX_AMOUNT_PER_HOUR * conversionRates.USD.rates.GBP;
 
             element.style.backgroundColor = rateToColor(rate, min, max);
 

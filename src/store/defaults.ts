@@ -1,18 +1,17 @@
 import type { VMSettings } from "../types";
 
 const defaultVMSettings = Object.freeze({
-    rates: {
+    conversionRates: {
         timestamp: 0,
-        gbpToUsd: { rate: 1.35 },
-        usdToGbp: { rate: 0.74 },
+        USD: { rates: { GBP: 0.74 } },
+        GBP: { rates: { USD: 1.35 } },
     },
+    selectedCurrency: "USD",
     enableCurrencyConversion: true,
     enableHighlightRates: true,
     enableSurveyLinks: true,
     enableNewSurveyNotifications: true,
-    initialized: false,
     surveys: {},
-    currency: "$",
 }) satisfies VMSettings;
 
 export { defaultVMSettings };

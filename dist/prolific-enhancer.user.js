@@ -24,18 +24,17 @@
 (() => {
   // src/store/defaults.ts
   var defaultVMSettings = Object.freeze({
-    rates: {
+    conversionRates: {
       timestamp: 0,
-      gbpToUsd: { rate: 1.35 },
-      usdToGbp: { rate: 0.74 }
+      USD: { rates: { GBP: 0.74 } },
+      GBP: { rates: { USD: 1.35 } }
     },
+    selectedCurrency: "USD",
     enableCurrencyConversion: true,
     enableHighlightRates: true,
     enableSurveyLinks: true,
     enableNewSurveyNotifications: true,
-    initialized: false,
-    surveys: {},
-    currency: "$"
+    surveys: {}
   });
 
   // src/store/store.ts
@@ -115,7 +114,7 @@
 
   // src/constants.ts
   var NOTIFY_TTL_MS = 24 * 60 * 60 * 1e3;
-  var GBP_TO_USD_FETCH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1e3;
+  var CONVERSION_RATES_FETCH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1e3;
   var MIN_AMOUNT_PER_HOUR = 7;
   var MAX_AMOUNT_PER_HOUR = 15;
 
@@ -168,28 +167,42 @@
   var newSurveyNotificationsEnhancement = new NewSurveyNotificationsEnhancement();
 
   // src/features/rates.ts
-  async function fetchGbpRate() {
-    const response = await fetch("https://open.er-api.com/v6/latest/GBP");
-    const data = await response.json();
-    return data.rates.USD;
-  }
-  async function fetchUsdRate() {
-    const response = await fetch("https://open.er-api.com/v6/latest/USD");
-    const data = await response.json();
-    return data.rates.GBP;
+  var fallbackRates = Object.freeze({
+    GBP: { rates: { USD: 1.35, GBP: 1 } },
+    USD: { rates: { GBP: 0.74, USD: 1 } }
+  });
+  async function fetchRates() {
+    const currencies = Object.keys(
+      fallbackRates
+    );
+    const conversionRates = {
+      ...fallbackRates
+    };
+    for (const currency of currencies) {
+      try {
+        const response = await fetch(
+          `https://open.er-api.com/v6/latest/${currency}`
+        );
+        const data = await response.json();
+        for (const c of currencies) {
+          if (c === currency) continue;
+          conversionRates[currency].rates[c] = data.rates[c];
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+    return conversionRates;
   }
   async function updateRates() {
-    const { rates } = await store_default.get(["rates"]);
+    const { conversionRates } = await store_default.get(["conversionRates"]);
     const now = Date.now();
-    if (now - rates.timestamp < GBP_TO_USD_FETCH_INTERVAL_MS) return;
-    const gbpToUsdRate = await fetchGbpRate().catch(console.error) || 1.35;
-    const usdToGbpRate = await fetchUsdRate().catch(console.error) || 0.74;
+    if (now - conversionRates.timestamp < CONVERSION_RATES_FETCH_INTERVAL_MS)
+      return;
+    const newConversionRates = await fetchRates();
+    newConversionRates.timestamp = now;
     await store_default.set({
-      rates: {
-        timestamp: now,
-        gbpToUsd: { rate: gbpToUsdRate },
-        usdToGbp: { rate: usdToGbpRate }
-      }
+      conversionRates: newConversionRates
     });
   }
   function extractHourlyRate(text) {
@@ -211,29 +224,39 @@
     const m = text.match(/[£$€]/);
     return m ? m[0] : null;
   }
+  function getSymbol(currency) {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency
+    }).formatToParts(0).find((part) => part.type === "currency")?.value;
+  }
   var ConvertCurrencyEnhancement = class {
     async apply() {
       const elements = document.querySelectorAll("span.reward span");
-      const { currency, rates } = await store_default.get(["currency", "rates"]);
-      const rate = currency === "$" ? rates.gbpToUsd.rate : rates.usdToGbp.rate;
+      const { selectedCurrency, conversionRates } = await store_default.get([
+        "selectedCurrency",
+        "conversionRates"
+      ]);
+      const selectedSymbol = getSymbol(selectedCurrency);
+      const rate = selectedCurrency === "USD" ? conversionRates.GBP.rates.USD : conversionRates.USD.rates.GBP;
       for (const element of elements) {
-        let originalText = element.getAttribute("data-original-text");
-        if (!originalText) {
+        let sourceText = element.getAttribute("data-original-text");
+        if (!sourceText) {
           element.setAttribute(
             "data-original-text",
             element.textContent || ""
           );
-          originalText = element.textContent || "";
+          sourceText = element.textContent || "";
         }
-        const originalSymbol = extractSymbol(originalText);
         const currentSymbol = extractSymbol(element.textContent);
-        if (originalSymbol === currency && element.textContent !== originalText) {
-          element.textContent = originalText;
+        const sourceSymbol = extractSymbol(sourceText);
+        if (sourceSymbol === selectedCurrency && element.textContent !== sourceText) {
+          element.textContent = sourceText;
           continue;
         }
-        if (currentSymbol === currency) continue;
+        if (currentSymbol === selectedSymbol) continue;
         const elementRate = extractHourlyRate(element.textContent);
-        let modified = `${currency}${(elementRate * rate).toFixed(2)}`;
+        let modified = `${selectedSymbol}${(elementRate * rate).toFixed(2)}`;
         if (element.textContent.includes("/hr")) modified += "/hr";
         element.textContent = modified;
       }
@@ -257,9 +280,9 @@
         const rate = extractHourlyRate(element.textContent);
         const symbol = extractSymbol(element.textContent);
         if (isNaN(rate) || !symbol) return;
-        const { rates } = await store_default.get(["rates"]);
-        const min = symbol === "$" ? MIN_AMOUNT_PER_HOUR : MIN_AMOUNT_PER_HOUR * rates.usdToGbp.rate;
-        const max = symbol === "$" ? MAX_AMOUNT_PER_HOUR : MAX_AMOUNT_PER_HOUR * rates.usdToGbp.rate;
+        const { conversionRates } = await store_default.get(["conversionRates"]);
+        const min = symbol === "$" ? MIN_AMOUNT_PER_HOUR : MIN_AMOUNT_PER_HOUR * conversionRates.USD.rates.GBP;
+        const max = symbol === "$" ? MAX_AMOUNT_PER_HOUR : MAX_AMOUNT_PER_HOUR * conversionRates.USD.rates.GBP;
         element.style.backgroundColor = rateToColor(rate, min, max);
         if (!element.classList.contains("pe-rate-highlight"))
           element.classList.add("pe-rate-highlight");
@@ -368,12 +391,12 @@
             defaultVMSettings
           )
         );
-        const { currency } = settings;
+        const { selectedCurrency } = settings;
         const id = GM.registerMenuCommand(
-          `Currency: ${currency}`,
+          `Currency: ${selectedCurrency}`,
           async () => {
             await store_default.set({
-              currency: currency === "$" ? "\xA3" : "$"
+              selectedCurrency: selectedCurrency === "USD" ? "GBP" : "USD"
             });
             await runEnhancements();
           }

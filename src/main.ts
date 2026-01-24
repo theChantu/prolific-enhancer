@@ -127,13 +127,14 @@ import { defaultVMSettings } from "./store/defaults";
                 ) as (keyof typeof defaultVMSettings)[],
             );
 
-            const { currency } = settings;
+            const { selectedCurrency } = settings;
             // Currency command
             const id = GM.registerMenuCommand(
-                `Currency: ${currency}`,
+                `Currency: ${selectedCurrency}`,
                 async () => {
                     await store.set({
-                        currency: currency === "$" ? "£" : "$",
+                        selectedCurrency:
+                            selectedCurrency === "USD" ? "GBP" : "USD",
                     });
                     await runEnhancements();
                 },

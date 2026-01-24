@@ -7,21 +7,20 @@ type Enhancement = {
     revert(): void;
 };
 
+type Currencies = "USD" | "GBP";
+
 type VMSettings = {
-    rates: {
+    conversionRates: {
         timestamp: number;
-        gbpToUsd: { rate: number };
-        usdToGbp: { rate: number };
+        USD: { rates: Record<Currencies, number> };
+        GBP: { rates: Record<Currencies, number> };
     };
+    selectedCurrency: Currencies;
     enableCurrencyConversion: boolean;
     enableHighlightRates: boolean;
     enableSurveyLinks: boolean;
     enableNewSurveyNotifications: boolean;
-    initialized: boolean;
     surveys: Record<string, ReturnType<typeof Date.now>>;
-    currency: Currency;
 };
 
-type Currency = "$" | "£";
-
-export type { Surveys, Enhancement, VMSettings };
+export type { Surveys, Enhancement, VMSettings, Currencies };
