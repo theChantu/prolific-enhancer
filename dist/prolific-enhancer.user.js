@@ -171,28 +171,33 @@
   var newSurveyNotificationsEnhancement = new NewSurveyNotificationsEnhancement();
 
   // src/features/rates.ts
-  var fallbackRates = Object.freeze({
-    ...defaultVMSettings.conversionRates
-  });
   async function fetchRates() {
-    const currencies = Object.keys(
-      fallbackRates
+    const { timestamp, ...conversionRates } = structuredClone(
+      defaultVMSettings.conversionRates
     );
-    const conversionRates = {
-      ...fallbackRates
-    };
-    for (const currency of currencies) {
-      try {
-        const response = await fetch(
-          `https://open.er-api.com/v6/latest/${currency}`
-        );
-        const data = await response.json();
-        for (const c of currencies) {
-          if (c === currency) continue;
-          conversionRates[currency].rates[c] = data.rates[c];
+    const currencies = Object.keys(
+      conversionRates
+    );
+    const responses = await Promise.all(
+      currencies.map(async (currency) => {
+        try {
+          const res = await fetch(
+            `https://open.er-api.com/v6/latest/${currency}`
+          );
+          const data = await res.json();
+          return { currency, data };
+        } catch {
+          return null;
         }
-      } catch (error) {
-        console.error(error);
+      })
+    );
+    for (const resp of responses) {
+      if (!resp) continue;
+      const { currency, data } = resp;
+      console.log("Fetched rates for: ", currency, data);
+      for (const c of currencies) {
+        if (c === currency) continue;
+        conversionRates[currency].rates[c] = data.rates[c];
       }
     }
     return conversionRates;
