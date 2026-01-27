@@ -33,7 +33,6 @@ async function fetchRates() {
     for (const resp of responses) {
         if (!resp) continue;
         const { currency, data } = resp;
-        console.log("Fetched rates for: ", currency, data);
         for (const c of currencies) {
             if (c === currency) continue;
             conversionRates[currency].rates[c] = data.rates[c];
