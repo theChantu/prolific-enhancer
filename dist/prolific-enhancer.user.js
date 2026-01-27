@@ -26,8 +26,8 @@
   var defaultVMSettings = Object.freeze({
     conversionRates: {
       timestamp: 0,
-      USD: { rates: { GBP: 0.74 } },
-      GBP: { rates: { USD: 1.35 } }
+      USD: { rates: { GBP: 0.74, USD: 1 } },
+      GBP: { rates: { USD: 1.35, GBP: 1 } }
     },
     selectedCurrency: "USD",
     enableCurrencyConversion: true,
@@ -168,8 +168,7 @@
 
   // src/features/rates.ts
   var fallbackRates = Object.freeze({
-    GBP: { rates: { USD: 1.35, GBP: 1 } },
-    USD: { rates: { GBP: 0.74, USD: 1 } }
+    ...defaultVMSettings.conversionRates
   });
   async function fetchRates() {
     const currencies = Object.keys(

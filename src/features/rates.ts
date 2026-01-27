@@ -4,27 +4,14 @@ import {
     MIN_AMOUNT_PER_HOUR,
     MAX_AMOUNT_PER_HOUR,
 } from "../constants.ts";
-import type { Currencies, Enhancement } from "../types.ts";
+import type { Enhancement } from "../types.ts";
 import { defaultVMSettings } from "../store/defaults.ts";
 import type { VMSettings } from "../types.ts";
-
-async function fetchGbpRate() {
-    const response = await fetch("https://open.er-api.com/v6/latest/GBP");
-    const data = await response.json();
-    return data.rates.USD;
-}
-
-async function fetchUsdRate() {
-    const response = await fetch("https://open.er-api.com/v6/latest/USD");
-    const data = await response.json();
-    return data.rates.GBP;
-}
 
 type ConversionRates = VMSettings["conversionRates"];
 
 const fallbackRates: Omit<ConversionRates, "timestamp"> = Object.freeze({
-    GBP: { rates: { USD: 1.35, GBP: 1 } },
-    USD: { rates: { GBP: 0.74, USD: 1 } },
+    ...defaultVMSettings.conversionRates,
 });
 
 async function fetchRates() {

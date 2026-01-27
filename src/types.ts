@@ -1,7 +1,3 @@
-type Surveys = {
-    [fingerprint: string]: number;
-};
-
 type Enhancement = {
     apply(): void;
     revert(): void;
@@ -23,4 +19,4 @@ type VMSettings = {
     surveys: Record<string, ReturnType<typeof Date.now>>;
 };
 
-export type { Surveys, Enhancement, VMSettings, Currencies };
+export type { Enhancement, VMSettings, Currencies };
