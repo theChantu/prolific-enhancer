@@ -98,11 +98,15 @@
     return () => {
       if (!promise) {
         promise = (async () => {
+          const entries = await Promise.all(
+            args.map(async (name) => {
+              const resource = await GM.getResourceUrl(name);
+              return [name, resource];
+            })
+          );
           const resources = {};
-          for (const name of args) {
-            const resource = await GM.getResourceUrl(name);
-            if (!resource) continue;
-            resources[name] = resource;
+          for (const [name, resource] of entries) {
+            if (resource) resources[name] = resource;
           }
           return resources;
         })();

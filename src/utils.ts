@@ -4,7 +4,7 @@ const log: typeof console.log = (...args) => {
 
 type GetResourceUrlParam = Parameters<typeof GM.getResourceUrl>[0];
 type ResourceMap<T extends readonly GetResourceUrlParam[]> = {
-    [K in T[number]]?: string;
+    [K in T[number]]?: Awaited<ReturnType<typeof GM.getResourceUrl>>;
 };
 
 const fetchResources = <const T extends readonly GetResourceUrlParam[]>(
@@ -15,12 +15,17 @@ const fetchResources = <const T extends readonly GetResourceUrlParam[]>(
     return () => {
         if (!promise) {
             promise = (async () => {
+                const entries = await Promise.all(
+                    args.map(async (name) => {
+                        const resource = await GM.getResourceUrl(name);
+                        return [name as T[number], resource] as const;
+                    }),
+                );
+
                 const resources = {} as ResourceMap<T>;
 
-                for (const name of args as readonly T[number][]) {
-                    const resource = await GM.getResourceUrl(name);
-                    if (!resource) continue;
-                    resources[name] = resource;
+                for (const [name, resource] of entries) {
+                    if (resource) resources[name] = resource;
                 }
 
                 return resources;

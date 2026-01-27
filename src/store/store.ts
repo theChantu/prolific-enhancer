@@ -10,8 +10,6 @@ type Store = {
         keys: K,
     ): Promise<Pick<StoreSchema, K[number]>>;
 
-    // get<K extends Partial<StoreSchema>>(defaults: K): Promise<StoreSchema & K>;
-
     set(values: Partial<StoreSchema>): Promise<void>;
 
     subscribe(listener: StoreListener): () => void;
