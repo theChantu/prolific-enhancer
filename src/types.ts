@@ -16,7 +16,13 @@ type VMSettings = {
     enableHighlightRates: boolean;
     enableSurveyLinks: boolean;
     enableNewSurveyNotifications: boolean;
+    enableDebug: boolean;
     surveys: Record<string, ReturnType<typeof Date.now>>;
+    ui: {
+        initialized?: boolean;
+        hidden?: boolean;
+        position?: { left: number; top: number };
+    };
 };
 
 export type { Enhancement, VMSettings, Currencies };

@@ -1,6 +1,29 @@
+import store from "./store/store";
+import {
+    convertCurrencyEnhancement,
+    highlightRatesEnhancement,
+    newSurveyNotificationsEnhancement,
+    surveyLinksEnhancement,
+    uiEnhancement,
+    updateRates,
+} from "./features";
+
+let debugEnabled = false;
+
+async function initDebug() {
+    const { enableDebug } = await store.get(["enableDebug"]);
+    debugEnabled = enableDebug;
+}
+
 const log: typeof console.log = (...args) => {
-    console.log("[Prolific Enhancer]", ...args);
+    if (debugEnabled) console.log("[Prolific Enhancer]", ...args);
 };
+
+store.subscribe((changed) => {
+    if ("enableDebug" in changed) {
+        debugEnabled = changed.enableDebug!;
+    }
+});
 
 type GetResourceUrlParam = Parameters<typeof GM.getResourceUrl>[0];
 type ResourceMap<T extends readonly GetResourceUrlParam[]> = {
@@ -35,5 +58,51 @@ const fetchResources = <const T extends readonly GetResourceUrlParam[]>(
     };
 };
 
+function clamp(value: number, min: number, max: number): number {
+    return Math.min(Math.max(value, min), max);
+}
+
+async function runEnhancements() {
+    log("Running enhancements...");
+    const {
+        enableCurrencyConversion,
+        enableHighlightRates,
+        enableSurveyLinks,
+        enableNewSurveyNotifications,
+        ui: { hidden },
+    } = await store.get([
+        "enableCurrencyConversion",
+        "enableHighlightRates",
+        "enableSurveyLinks",
+        "enableNewSurveyNotifications",
+        "ui",
+    ]);
+
+    await Promise.all([
+        !enableCurrencyConversion && convertCurrencyEnhancement.revert(),
+        !enableHighlightRates && highlightRatesEnhancement.revert(),
+        !enableSurveyLinks && surveyLinksEnhancement.revert(),
+        !enableNewSurveyNotifications &&
+            newSurveyNotificationsEnhancement.revert(),
+        hidden && uiEnhancement.revert(),
+    ]);
+
+    // Convert to selected currency before highlighting rates
+    if (enableCurrencyConversion) {
+        // Fetch the latest currency rates before conversion
+        await updateRates();
+    }
+
+    await Promise.all([
+        enableCurrencyConversion && convertCurrencyEnhancement.apply(),
+        enableHighlightRates && highlightRatesEnhancement.apply(),
+        enableSurveyLinks && surveyLinksEnhancement.apply(),
+        enableNewSurveyNotifications &&
+            newSurveyNotificationsEnhancement.apply(),
+        !hidden && uiEnhancement.apply(),
+    ]);
+}
+
 const getSharedResources = fetchResources("prolific_logo");
-export { log, fetchResources, getSharedResources };
+initDebug();
+export { log, fetchResources, getSharedResources, clamp, runEnhancements };

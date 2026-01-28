@@ -1,12 +1,6 @@
 import store from "./store/store";
-import {
-    convertCurrencyEnhancement,
-    newSurveyNotificationsEnhancement,
-    highlightRatesEnhancement,
-    surveyLinksEnhancement,
-    updateRates,
-} from "./features";
-import { log } from "./utils";
+import { uiEnhancement } from "./features";
+import { log, runEnhancements } from "./utils";
 import { defaultVMSettings } from "./store/defaults";
 
 (async function () {
@@ -36,6 +30,45 @@ import { defaultVMSettings } from "./store/defaults";
             border-radius: 4px;
             color: black;
         }
+        .pe-settings-item {
+            display: flex;
+        }
+        #pe-ui-container {
+            position: fixed;
+            bottom: auto;
+            right: auto;
+            min-width: 260px;
+            background: rgba(30, 30, 30, 0.9);
+            color: white;
+            border-radius: 4px;
+            padding: 3px 4px;
+            z-index: 10000;
+            cursor: grab;
+            user-select: none;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        #pe-ui-container:active #pe-ui-title {
+            cursor: grabbing;
+        }
+        #pe-settings-container {
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            gap: 10px;
+            min-height: 120px;
+        }
+        #pe-ui-title {
+            font-weight: bold;
+            text-align: center;
+            font-size: 0.8em;
+            letter-spacing: 0.3px;
+            background: #0a3c95;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            cursor: grab;
+            user-select: none;
+        }
     `);
 
     function debounce<F extends (...args: any[]) => any>(
@@ -55,42 +88,6 @@ import { defaultVMSettings } from "./store/defaults";
                 Promise.resolve(fn(...args)).catch(console.error);
             }, delay);
         };
-    }
-
-    async function runEnhancements() {
-        const {
-            enableCurrencyConversion = true,
-            enableHighlightRates = true,
-            enableSurveyLinks = true,
-            enableNewSurveyNotifications = true,
-        } = await store.get([
-            "enableCurrencyConversion",
-            "enableHighlightRates",
-            "enableSurveyLinks",
-            "enableNewSurveyNotifications",
-        ]);
-
-        await Promise.all([
-            !enableCurrencyConversion && convertCurrencyEnhancement.revert(),
-            !enableHighlightRates && highlightRatesEnhancement.revert(),
-            !enableSurveyLinks && surveyLinksEnhancement.revert(),
-            !enableNewSurveyNotifications &&
-                newSurveyNotificationsEnhancement.revert(),
-        ]);
-
-        // Convert to selected currency before highlighting rates
-        if (enableCurrencyConversion) {
-            // Fetch the latest currency rates before conversion
-            await updateRates();
-        }
-
-        await Promise.all([
-            enableCurrencyConversion && convertCurrencyEnhancement.apply(),
-            enableHighlightRates && highlightRatesEnhancement.apply(),
-            enableSurveyLinks && surveyLinksEnhancement.apply(),
-            enableNewSurveyNotifications &&
-                newSurveyNotificationsEnhancement.apply(),
-        ]);
     }
 
     // Apply the enhancements initially
@@ -121,47 +118,19 @@ import { defaultVMSettings } from "./store/defaults";
             }
             commandIds.length = 0;
 
-            const settings = await store.get(
-                Object.keys(
-                    defaultVMSettings,
-                ) as (keyof typeof defaultVMSettings)[],
-            );
+            const {
+                ui: { hidden },
+            } = await store.get(["ui"]);
 
-            const { selectedCurrency } = settings;
-            // Currency command
             const id = GM.registerMenuCommand(
-                `Currency: ${selectedCurrency}`,
+                `${hidden ? "Show" : "Hide"} Settings UI`,
                 async () => {
                     await store.set({
-                        selectedCurrency:
-                            selectedCurrency === "USD" ? "GBP" : "USD",
+                        ui: { hidden: !hidden },
                     });
-                    await runEnhancements();
                 },
             );
             commandIds.push(id);
-
-            const toggleSettings = Object.keys(settings).filter((key) =>
-                key.startsWith("enable"),
-            ) as (keyof typeof defaultVMSettings)[];
-            for (const setting of toggleSettings) {
-                const formattedSettingName = setting
-                    .replace("enable", "")
-                    .split(/(?=[A-Z])/)
-                    .join(" ");
-
-                // Toggle commands
-                const id = GM.registerMenuCommand(
-                    `${settings[setting] ? "Disable" : "Enable"} ${formattedSettingName}`,
-                    async () => {
-                        await store.set({
-                            [setting]: !settings[setting],
-                        });
-                        await runEnhancements();
-                    },
-                );
-                commandIds.push(id);
-            }
         };
     }
     const refreshMenuCommands = createMenuCommandRefresher();
@@ -169,5 +138,8 @@ import { defaultVMSettings } from "./store/defaults";
     await refreshMenuCommands();
     const unsubscribe = store.subscribe(async (changed) => {
         await refreshMenuCommands();
+        debounced();
+
+        uiEnhancement.update(changed);
     });
 })();

@@ -8,10 +8,12 @@ const defaultVMSettings = Object.freeze({
     },
     selectedCurrency: "USD",
     enableCurrencyConversion: true,
+    enableDebug: false,
     enableHighlightRates: true,
     enableSurveyLinks: true,
     enableNewSurveyNotifications: true,
     surveys: {},
+    ui: { initialized: false, hidden: true, position: { left: 0, top: 0 } },
 }) satisfies VMSettings;
 
 export { defaultVMSettings };

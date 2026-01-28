@@ -149,7 +149,10 @@ class HighlightRatesEnhancement implements Enhancement {
         );
         for (const element of elements) {
             // Check if the element should be ignored
-            if (element.getAttribute("data-testid") === "study-tag-reward") {
+            if (
+                element.getAttribute("data-testid") === "study-tag-reward" ||
+                element.classList.contains("pe-rate-highlight")
+            ) {
                 continue;
             }
 
@@ -175,12 +178,13 @@ class HighlightRatesEnhancement implements Enhancement {
         }
     }
     revert() {
-        document
-            .querySelectorAll<HTMLElement>(".pe-rate-highlight")
-            .forEach((el) => {
-                el.style.backgroundColor = "";
-                el.classList.remove("pe-rate-highlight");
-            });
+        const elements =
+            document.querySelectorAll<HTMLElement>(".pe-rate-highlight");
+        for (const el of elements) {
+            if (!el) continue;
+            el.style.backgroundColor = "";
+            el.classList.remove("pe-rate-highlight");
+        }
     }
 }
 

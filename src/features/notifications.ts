@@ -25,6 +25,8 @@ async function saveSurveyFingerprint(fingerprint: string) {
     return true;
 }
 
+function validSurveyToNotify() {}
+
 class NewSurveyNotificationsEnhancement implements Enhancement {
     async apply() {
         const surveys = document.querySelectorAll<HTMLElement>(

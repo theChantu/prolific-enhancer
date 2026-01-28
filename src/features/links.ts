@@ -24,9 +24,11 @@ class SurveyLinksEnhancement implements Enhancement {
     }
 
     revert() {
-        document
-            .querySelectorAll(".pe-btn-container")
-            .forEach((el) => el.remove());
+        const elements = document.querySelectorAll(".pe-btn-container");
+        for (const el of elements) {
+            if (!el) continue;
+            el.remove();
+        }
     }
 }
 

@@ -5,3 +5,4 @@ export {
     highlightRatesEnhancement,
     updateRates,
 } from "./rates";
+export { uiEnhancement } from "./ui";
