@@ -3,8 +3,6 @@ import { extractSymbol } from "../utils";
 
 import type { AdapterSettings } from "./Adapter";
 
-// TODO: Remove the selectors from AdapterSettings because each adapter will have custom function implementations, removing the need for it
-
 const PROLIFIC_SETTINGS: AdapterSettings = {
     enableInterval: false,
 };

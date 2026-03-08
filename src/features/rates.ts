@@ -1,5 +1,4 @@
 import store from "../store/store.ts";
-import { log } from "../utils.ts";
 import {
     CONVERSION_RATES_FETCH_INTERVAL_MS,
     MIN_AMOUNT_PER_HOUR,

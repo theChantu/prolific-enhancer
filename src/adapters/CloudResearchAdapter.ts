@@ -7,13 +7,6 @@ const CLOUD_RESEARCH_SETTINGS: AdapterSettings = {
     enableInterval: true,
 };
 
-//     "div.project-card",
-//     "project-card-",
-//     "div.project-card",
-//     "body",
-//     '[class*="project-pay-per-hour-"] span.font-bold',
-//     '[class*="project-pay-per-hour-"]',
-
 export class CloudResearchAdapter extends BaseAdapter {
     constructor(overrides: Partial<AdapterSettings> = {}) {
         super(CLOUD_RESEARCH_SETTINGS, overrides);
@@ -71,9 +64,3 @@ export class CloudResearchAdapter extends BaseAdapter {
 
     setHourlyRate(element: HTMLElement) {}
 }
-
-// The Adapters (e.g., CloudResearchAdapter.ts): Only allowed to touch the DOM. They find the weird HTML elements and return them. No math allowed.
-
-// The Enhancements (e.g., CurrencyConverter.ts): Only allowed to do logic. They ask the Adapter for elements, do the math, and update the text.
-
-// The Router (e.g., main.ts): Looks at the URL, creates the right Adapter, checks your settings, and runs the Enhancements.
