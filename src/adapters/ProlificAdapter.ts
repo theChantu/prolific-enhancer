@@ -51,19 +51,21 @@ export class ProlificAdapter extends BaseAdapter {
     }
 
     getCurrencyInfo(el: HTMLElement) {
-        let displaySymbol = Array.from(el.classList).find((className) =>
+        let displayClass = Array.from(el.classList).find((className) =>
             className.startsWith("display-"),
         );
-        if (displaySymbol)
-            displaySymbol = displaySymbol.replace("display-", "");
-        let sourceSymbol = Array.from(el.classList).find((className) =>
+
+        let sourceClass = Array.from(el.classList).find((className) =>
             className.startsWith("source-"),
         );
-        if (sourceSymbol) sourceSymbol = sourceSymbol.replace("source-", "");
+
+        const displaySymbol = displayClass?.replace("display-", "");
+        const sourceSymbol = sourceClass?.replace("source-", "");
 
         return {
-            displaySymbol: displaySymbol ?? null,
-            sourceSymbol: sourceSymbol ?? null,
+            displaySymbol:
+                displaySymbol ?? this.getInitCurrencyInfo(el) ?? null,
+            sourceSymbol: sourceSymbol ?? this.getInitCurrencyInfo(el) ?? null,
         };
     }
 

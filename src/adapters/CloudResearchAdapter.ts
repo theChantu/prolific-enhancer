@@ -69,8 +69,9 @@ export class CloudResearchAdapter
 
         return {
             // CloudResearch uses USD by default
-            displaySymbol: displaySymbol ?? "$",
-            sourceSymbol: "$",
+            displaySymbol:
+                displaySymbol ?? this.getInitCurrencyInfo(el) ?? null,
+            sourceSymbol: this.getInitCurrencyInfo(el) ?? null,
         };
     }
 
