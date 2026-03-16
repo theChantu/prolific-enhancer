@@ -17,6 +17,7 @@ export class CloudResearchAdapter
             {
                 host: "connect.cloudresearch.com",
                 path: "/participant/dashboard",
+                iconPath: "/participant/favicon.ico",
                 suffix: "details",
                 query: {
                     page: 1,
@@ -61,11 +62,11 @@ export class CloudResearchAdapter
     }
 
     getCurrencyInfo(el: HTMLElement) {
-        let displaySymbol = Array.from(el.classList).find((className) =>
-            className.startsWith("current-"),
+        let displayClass = Array.from(el.classList).find((className) =>
+            className.startsWith("display-"),
         );
-        if (displaySymbol)
-            displaySymbol = displaySymbol.replace("current-", "");
+
+        const displaySymbol = displayClass?.replace("display-", "");
 
         return {
             // CloudResearch uses USD by default

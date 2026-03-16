@@ -10,7 +10,6 @@ const defaultSiteSettings = Object.freeze({
     },
     selectedCurrency: "USD",
     enableCurrencyConversion: true,
-    enableDebug: false,
     enableHighlightRates: true,
     enableSurveyLinks: true,
     enableNewSurveyNotifications: true,

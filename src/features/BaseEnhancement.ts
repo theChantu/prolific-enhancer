@@ -1,7 +1,7 @@
 import getSiteAdapter from "../lib/getSiteAdapter";
 
 export default abstract class BaseEnhancement {
-    readonly adapter: ReturnType<typeof getSiteAdapter>;
+    readonly adapter;
 
     constructor() {
         this.adapter = getSiteAdapter();

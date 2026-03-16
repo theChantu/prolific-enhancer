@@ -6,10 +6,17 @@ import type { ModuleName } from "./modules/BaseModule";
 type UrlSettings = {
     host: string;
     path: string;
+    iconPath: string;
     suffix?: string;
     query?: Record<string, string | number | boolean>;
 };
 
+// TODO: Allow AdapterSettings to inherit these settings based on whatever Module is extended
+// e.g., CurrencyConversion would pass enableCurrencyConversion
+// enableCurrencyConversion: boolean;
+// enableHighlightRates: boolean;
+// enableSurveyLinks: boolean;
+// enableNewSurveyNotifications: boolean;
 export type AdapterSettings = {
     enableAutoReload: boolean;
 };
@@ -48,6 +55,10 @@ export abstract class BaseAdapter {
 
     buildUrl(segments: string[]) {
         return joinURL(this.origin, ...segments);
+    }
+
+    get iconUrl(): string {
+        return this.buildUrl([this.url.iconPath]);
     }
 
     abstract getSurveyElements(): NodeListOf<HTMLElement>;

@@ -1,13 +1,10 @@
-import store from "../store/store.ts";
-import {
-    CONVERSION_RATES_FETCH_INTERVAL_MS,
-    MIN_AMOUNT_PER_HOUR,
-    MAX_AMOUNT_PER_HOUR,
-} from "../constants.ts";
-import BaseEnhancement from "./BaseEnhancement.ts";
-import { defaultSiteSettings } from "../store/defaults.ts";
+import store from "../store/store";
+import { CONVERSION_RATES_FETCH_INTERVAL_MS } from "../constants";
+import BaseEnhancement from "./BaseEnhancement";
+import { defaultSiteSettings } from "../store/defaultSiteSettings";
+import extractHourlyRate from "@/lib/extractHourlyRate";
 
-import type { SiteSettings } from "../lib/types.ts";
+import type { SiteSettings } from "../lib/types";
 
 type ConversionRates = SiteSettings["conversionRates"];
 
@@ -43,47 +40,6 @@ async function fetchRates() {
     return conversionRates as ConversionRates;
 }
 
-async function updateRates() {
-    const { conversionRates } = await store.get(["conversionRates"]);
-
-    const now = Date.now();
-    if (now - conversionRates.timestamp < CONVERSION_RATES_FETCH_INTERVAL_MS)
-        return;
-
-    const newConversionRates = await fetchRates();
-    newConversionRates.timestamp = now;
-
-    await store.set({
-        conversionRates: newConversionRates,
-    });
-}
-
-function extractHourlyRate(text: string) {
-    const m = text.match(/[\d.]+/);
-    return m ? parseFloat(m[0]) : NaN;
-}
-
-function rateToColor(rate: number, min = 7, max = 15) {
-    const clamped = Math.min(Math.max(rate, min), max);
-
-    const logMin = Math.log(min);
-    const logMax = Math.log(max);
-    const logRate = Math.log(clamped);
-
-    const ratio = (logRate - logMin) / (logMax - logMin);
-    const bias = Math.pow(ratio, 0.6); // Adjust bias for better color distribution
-
-    const r = Math.round(255 * (1 - bias));
-    const g = Math.round(255 * bias);
-
-    return `rgba(${r}, ${g}, 0, 0.63)`;
-}
-
-function extractSymbol(text: string) {
-    const m = text.match(/[£$€]/);
-    return m ? m[0] : null;
-}
-
 function getSymbol(currency: string) {
     return new Intl.NumberFormat("en-US", {
         style: "currency",
@@ -95,11 +51,13 @@ function getSymbol(currency: string) {
 
 class ConvertCurrencyEnhancement extends BaseEnhancement {
     async apply() {
+        await this.updateRates();
+
         const elements = this.adapter.getRewardElements();
-        const { selectedCurrency, conversionRates } = await store.get([
-            "selectedCurrency",
-            "conversionRates",
-        ]);
+        const { selectedCurrency, conversionRates } = await store.get(
+            this.adapter.siteName,
+            ["selectedCurrency", "conversionRates"],
+        );
 
         const selectedSymbol = getSymbol(selectedCurrency);
         const rate =
@@ -151,6 +109,26 @@ class ConvertCurrencyEnhancement extends BaseEnhancement {
         }
     }
 
+    private async updateRates() {
+        const { conversionRates } = await store.get(this.adapter.siteName, [
+            "conversionRates",
+        ]);
+
+        const now = Date.now();
+        if (
+            now - conversionRates.timestamp <
+            CONVERSION_RATES_FETCH_INTERVAL_MS
+        )
+            return;
+
+        const newConversionRates = await fetchRates();
+        newConversionRates.timestamp = now;
+
+        await store.set(this.adapter.siteName, {
+            conversionRates: newConversionRates,
+        });
+    }
+
     private updateDisplay(element: HTMLElement, display: string) {
         const previousClassName = Array.from(element.classList).find(
             (className) => className.startsWith("display-"),
@@ -179,53 +157,6 @@ class ConvertCurrencyEnhancement extends BaseEnhancement {
     }
 }
 
-class HighlightRatesEnhancement extends BaseEnhancement {
-    async apply() {
-        const elements = this.adapter.getHourlyRateElements();
-        for (const element of elements) {
-            // Check if the element should be ignored
-            if (element.classList.contains("pe-rate-highlight")) {
-                continue;
-            }
-
-            const rate = extractHourlyRate(element.textContent);
-            const { displaySymbol, sourceSymbol } =
-                this.adapter.getCurrencyInfo(element);
-            if (isNaN(rate)) return;
-
-            const { conversionRates } = await store.get(["conversionRates"]);
-
-            // TODO: Always convert to USD before highlighting to get proper color coding
-            // This will help when multiple currencies are supported
-            // Can fetch conversion rate if needed
-
-            const min =
-                displaySymbol === "$"
-                    ? MIN_AMOUNT_PER_HOUR
-                    : MIN_AMOUNT_PER_HOUR * conversionRates.USD.rates.GBP;
-            const max =
-                displaySymbol === "$"
-                    ? MAX_AMOUNT_PER_HOUR
-                    : MAX_AMOUNT_PER_HOUR * conversionRates.USD.rates.GBP;
-
-            element.style.backgroundColor = rateToColor(rate, min, max);
-
-            if (!element.classList.contains("pe-rate-highlight"))
-                element.classList.add("pe-rate-highlight");
-        }
-    }
-    async revert() {
-        const elements =
-            document.querySelectorAll<HTMLElement>(".pe-rate-highlight");
-        for (const el of elements) {
-            if (!el) continue;
-            el.style.backgroundColor = "";
-            el.classList.remove("pe-rate-highlight");
-        }
-    }
-}
-
-const highlightRatesEnhancement = new HighlightRatesEnhancement();
 const convertCurrencyEnhancement = new ConvertCurrencyEnhancement();
 
-export { updateRates, convertCurrencyEnhancement, highlightRatesEnhancement };
+export { convertCurrencyEnhancement };

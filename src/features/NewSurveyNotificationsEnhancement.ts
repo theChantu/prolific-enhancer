@@ -3,35 +3,7 @@ import { capitalize } from "../lib/utils";
 import { NOTIFY_TTL_MS } from "../constants";
 import BaseEnhancement from "./BaseEnhancement";
 import getSiteResources from "../lib/getSiteResources";
-
-async function saveSurveyFingerprints(fingerprints: string[]) {
-    const now = Date.now();
-
-    const { surveys: immutableSurveys } = await store.get(["surveys"]);
-    const prevSurveys = structuredClone(immutableSurveys);
-
-    let changed = false;
-    // TTL removals
-    for (const [key, timestamp] of Object.entries(prevSurveys)) {
-        if (now - timestamp >= NOTIFY_TTL_MS) {
-            delete prevSurveys[key];
-            changed = true;
-        }
-    }
-
-    const newSurveys: string[] = [];
-    for (const fingerprint of fingerprints) {
-        if (!(fingerprint in prevSurveys)) {
-            newSurveys.push(fingerprint);
-            prevSurveys[fingerprint] = now;
-            changed = true;
-        }
-    }
-
-    if (changed) await store.set({ surveys: prevSurveys });
-
-    return newSurveys;
-}
+import { sendExtensionMessage } from "@/messages/sendExtensionMessage";
 
 class NewSurveyNotificationsEnhancement extends BaseEnhancement {
     async apply() {
@@ -40,15 +12,52 @@ class NewSurveyNotificationsEnhancement extends BaseEnhancement {
 
         const assets = await getSiteResources();
         const surveyFingerprints = this.extractSurveyFingerprints(surveys);
-        const newSurveys = await saveSurveyFingerprints(surveyFingerprints);
+        const newSurveys =
+            await this.saveSurveyFingerprints(surveyFingerprints);
 
         for (const survey of surveys) {
             const surveyId = this.adapter.getSurveyId(survey);
             if (!surveyId || !newSurveys.includes(surveyId) || !document.hidden)
                 continue;
 
-            GM.notification(this.buildNotification(survey, surveyId, assets));
+            await sendExtensionMessage({
+                type: "survey-notification",
+                data: this.buildNotification(survey, surveyId, assets),
+            });
         }
+    }
+
+    private async saveSurveyFingerprints(fingerprints: string[]) {
+        const now = Date.now();
+
+        const { surveys: immutableSurveys } = await store.get(
+            this.adapter.siteName,
+            ["surveys"],
+        );
+        const prevSurveys = structuredClone(immutableSurveys);
+
+        let changed = false;
+        // TTL removals
+        for (const [key, timestamp] of Object.entries(prevSurveys)) {
+            if (now - timestamp >= NOTIFY_TTL_MS) {
+                delete prevSurveys[key];
+                changed = true;
+            }
+        }
+
+        const newSurveys: string[] = [];
+        for (const fingerprint of fingerprints) {
+            if (!(fingerprint in prevSurveys)) {
+                newSurveys.push(fingerprint);
+                prevSurveys[fingerprint] = now;
+                changed = true;
+            }
+        }
+
+        if (changed)
+            await store.set(this.adapter.siteName, { surveys: prevSurveys });
+
+        return newSurveys;
     }
 
     private extractSurveyFingerprints(surveys: NodeListOf<HTMLElement>) {
@@ -88,15 +97,13 @@ class NewSurveyNotificationsEnhancement extends BaseEnhancement {
 
         const siteLabel = capitalize(this.adapter.siteName);
 
-        return {
+        const notificationData = {
             title: surveyTitle || siteLabel,
-            text: `${siteLabel} • ${displaySymbol}${rewardText} • ${displaySymbol}${hourlyRateText}/hr`,
-            image: assets[this.adapter.siteName],
-            onclick: () =>
-                GM.openInTab(surveyLink, {
-                    active: true,
-                }),
+            message: `${siteLabel} • ${displaySymbol}${rewardText} • ${displaySymbol}${hourlyRateText}/hr`,
+            iconUrl: assets[this.adapter.iconUrl],
+            surveyLink,
         };
+        return notificationData;
     }
 
     async revert() {

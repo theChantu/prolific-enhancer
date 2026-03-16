@@ -1,8 +1,4 @@
-export { surveyLinksEnhancement } from "./links";
-export { newSurveyNotificationsEnhancement } from "./notifications";
-export {
-    convertCurrencyEnhancement,
-    highlightRatesEnhancement,
-    updateRates,
-} from "./rates";
-export { uiEnhancement } from "./ui";
+export { surveyLinksEnhancement } from "./SurveyLinksEnhancement";
+export { newSurveyNotificationsEnhancement } from "./NewSurveyNotificationsEnhancement";
+export { convertCurrencyEnhancement } from "./ConvertCurrencyEnhancement";
+export { highlightRatesEnhancement } from "./HighlightRatesEnhancement";

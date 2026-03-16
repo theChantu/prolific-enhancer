@@ -1,22 +1,3 @@
-import store from "../store/store";
-
-let debugEnabled = false;
-
-async function initDebug() {
-    const { enableDebug } = await store.get(["enableDebug"]);
-    debugEnabled = enableDebug;
-}
-
-const log: typeof console.log = (...args) => {
-    if (debugEnabled) console.log("[Prolific Enhancer]", ...args);
-};
-
-store.subscribe((changed) => {
-    if ("enableDebug" in changed) {
-        debugEnabled = changed.enableDebug!;
-    }
-});
-
 function capitalize(text: string) {
     return text.charAt(0).toUpperCase() + text.slice(1);
 }
@@ -69,9 +50,7 @@ function clamp(value: number, min: number, max: number): number {
     return Math.min(Math.max(value, min), max);
 }
 
-initDebug();
 export {
-    log,
     clamp,
     extractSymbol,
     getRandomTimeoutMs,

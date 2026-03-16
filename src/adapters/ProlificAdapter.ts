@@ -14,6 +14,7 @@ export class ProlificAdapter extends BaseAdapter {
             {
                 host: "app.prolific.com",
                 path: "/studies",
+                iconPath: "/apple-touch-icon.png",
             },
             PROLIFIC_SETTINGS,
             overrides,

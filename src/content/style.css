@@ -1,0 +1,60 @@
+.pe-custom-btn {
+    padding: 8px 24px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    background-color: #0a3c95;
+    color: white;
+    cursor: pointer;
+    text-decoration: none;
+}
+.pe-custom-btn:hover {
+    background-color: #0d4ebf;
+    color: white !important;
+}
+.pe-btn-container {
+    padding: 0 16px 8px 16px;
+}
+.pe-rate-highlight {
+    padding: 3px 4px;
+    border-radius: 4px;
+    color: black;
+}
+.pe-settings-item {
+    display: flex;
+}
+#pe-ui-container {
+    position: fixed;
+    bottom: auto;
+    right: auto;
+    min-width: 260px;
+    background: rgba(30, 30, 30, 0.9);
+    color: white;
+    border-radius: 4px;
+    padding: 3px 4px;
+    z-index: 10000;
+    cursor: grab;
+    user-select: none;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+#pe-ui-container:active #pe-ui-title {
+    cursor: grabbing;
+}
+#pe-settings-container {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    gap: 10px;
+    min-height: 120px;
+}
+#pe-ui-title {
+    font-weight: bold;
+    text-align: center;
+    font-size: 0.8em;
+    letter-spacing: 0.3px;
+    background: #0a3c95;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    cursor: grab;
+    user-select: none;
+}
